@@ -1,4 +1,4 @@
-From 9187905acb887f146ab81d7cee59c38131410327 Mon Sep 17 00:00:00 2001
+From 6fad0339e24ad06826552fd06e7aecf628a645ed Mon Sep 17 00:00:00 2001
 From: oligami <69239094+oligamiq@users.noreply.github.com>
 Date: Thu, 26 Sep 2024 00:04:20 +0900
 Subject: [PATCH 2/5] Compile rustc+LLVM to wasm
@@ -37,11 +37,11 @@ Co-authored-by: bjorn3 <17426603+bjorn3@users.noreply.github.com>
  .gitmodules                                   |   4 +-
  compiler/rustc_llvm/build.rs                  |  12 ++
  .../src/spec/targets/wasm32_wasip1_threads.rs |   9 +-
- config.llvm.toml                              |  44 +++++
+ config.llvm.toml                              |  47 +++++
  src/bootstrap/src/core/build_steps/compile.rs |   7 +-
  src/bootstrap/src/core/build_steps/llvm.rs    | 177 ++++++++++++++++++
  src/llvm-project                              |   2 +-
- 7 files changed, 249 insertions(+), 6 deletions(-)
+ 7 files changed, 252 insertions(+), 6 deletions(-)
  create mode 100644 config.llvm.toml
 
 diff --git a/.gitmodules b/.gitmodules
@@ -118,10 +118,10 @@ index 0fa7ae291cf..128da07f26f 100644
  
 diff --git a/config.llvm.toml b/config.llvm.toml
 new file mode 100644
-index 00000000000..967bbabeb85
+index 00000000000..53f33fafc6a
 --- /dev/null
 +++ b/config.llvm.toml
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,47 @@
 +# Bootstrap config for a rustc whose host is wasm32-wasip1-threads, using LLVM
 +# as the codegen backend. The wasi-sdk is extracted as ./wasi-sdk in the checkout.
 +profile = "compiler"
@@ -131,6 +131,9 @@ index 00000000000..967bbabeb85
 +codegen-backends = ["llvm"]
 +deny-warnings = false
 +llvm-bitcode-linker = false
++# The wasm LLVM is built without tools (see the WASI CMake block), so there is
++# nothing for bootstrap to install into the compiler's bin directory.
++llvm-tools = false
 +debug = false
 +debuginfo-level = 0
 +
