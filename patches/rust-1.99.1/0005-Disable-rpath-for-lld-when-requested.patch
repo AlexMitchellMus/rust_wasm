@@ -1,0 +1,26 @@
+From f5e1d56ab21d37ad42b8d366d280a079aa675fcb Mon Sep 17 00:00:00 2001
+From: bjorn3 <17426603+bjorn3@users.noreply.github.com>
+Date: Thu, 26 Sep 2024 21:44:19 +0200
+Subject: [PATCH 5/5] Disable rpath for lld when requested
+
+(unrelated to getting rustc to compile for wasi)
+
+(cherry picked from commit f7a223c1c21d00cbd63b75f8836b8e64192f24b5)
+---
+ src/bootstrap/src/core/build_steps/llvm.rs | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/src/bootstrap/src/core/build_steps/llvm.rs b/src/bootstrap/src/core/build_steps/llvm.rs
+index 8b747865079..c63ceedfc80 100644
+--- a/src/bootstrap/src/core/build_steps/llvm.rs
++++ b/src/bootstrap/src/core/build_steps/llvm.rs
+@@ -1695,6 +1695,9 @@ fn run(self, builder: &Builder<'_>) -> PathBuf {
+             if target.contains("apple-darwin") {
+                 ldflags.push_all("-Wl,-rpath,'@loader_path/../../../'");
+             }
++        } else {
++            // CMake defaults to building executables with rpath enabled.
++            cfg.define("CMAKE_SKIP_RPATH", "ON");
+         }
+ 
+         configure_cmake(builder, target, &mut cfg, true, ldflags, CcFlags::default(), &[]);

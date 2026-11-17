@@ -1,0 +1,28 @@
+From c8871cb8a52de5640369fd63570a4c8384234dd9 Mon Sep 17 00:00:00 2001
+From: bjorn3 <17426603+bjorn3@users.noreply.github.com>
+Date: Thu, 26 Sep 2024 21:43:07 +0200
+Subject: [PATCH 4/5] Make linking for wasm32-wasip1 work by default
+
+(cherry picked from commit 315dd3f99d911c80af0fb3afbade10903712cdaa)
+---
+ src/bootstrap/src/core/builder/cargo.rs | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/src/bootstrap/src/core/builder/cargo.rs b/src/bootstrap/src/core/builder/cargo.rs
+index cd4e40a58ff..33981a64f9f 100644
+--- a/src/bootstrap/src/core/builder/cargo.rs
++++ b/src/bootstrap/src/core/builder/cargo.rs
+@@ -352,6 +352,13 @@ fn configure_linker(&mut self, builder: &Builder<'_>) -> &mut Cargo {
+             let host = crate::envify(&compiler.host.triple);
+             self.command.env(format!("CARGO_TARGET_{host}_LINKER"), host_linker);
+         }
++
++        if target.contains("wasi") {
++            // link-self-contained needs lld to be present, but getting it to
++            // link for wasi is a bit difficult.
++            self.rustflags.arg("-Clink-self-contained=no");
++        }
++
+         for arg in linker_flags(builder, compiler.host, LldThreads::Yes) {
+             self.hostflags.arg(&arg);
+         }

@@ -1,0 +1,156 @@
+From 3d08ef18932254388feec72a1b523f5a24a4c6d3 Mon Sep 17 00:00:00 2001
+From: bjorn3 <17426603+bjorn3@users.noreply.github.com>
+Date: Thu, 25 Jan 2024 20:48:49 +0000
+Subject: [PATCH 1/5] [WIP] Support compiling rustc to WebAssembly
+
+(cherry picked from commit 2af9f5579939354d169f0a168db567539d2a8c7b)
+---
+ .gitignore                                    |  5 +++++
+ compiler/rustc_codegen_ssa/src/back/linker.rs |  5 ++++-
+ compiler/rustc_driver_impl/src/lib.rs         |  2 +-
+ compiler/rustc_interface/src/util.rs          | 20 ++++++++++++++++++-
+ compiler/rustc_metadata/src/host_dylib.rs     | 18 +++++++++++++++++
+ 5 files changed, 47 insertions(+), 3 deletions(-)
+
+diff --git a/.gitignore b/.gitignore
+index 91a2647ca98..4a4c215f403 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -104,3 +104,8 @@ flake.lock
+ /default.nix
+ 
+ # Before adding new lines, see the comment at the top.
++
++/wasi-sdk-*
++/wabt-*
++/tmp
++/rust_out
+diff --git a/compiler/rustc_codegen_ssa/src/back/linker.rs b/compiler/rustc_codegen_ssa/src/back/linker.rs
+index 4c99da5049e..8410ece301e 100644
+--- a/compiler/rustc_codegen_ssa/src/back/linker.rs
++++ b/compiler/rustc_codegen_ssa/src/back/linker.rs
+@@ -131,7 +131,10 @@ pub(crate) fn get_linker<'a>(
+     if !msvc_changed_path && let Some(path) = env::var_os("PATH") {
+         new_path.extend(env::split_paths(&path));
+     }
+-    cmd.env("PATH", env::join_paths(new_path).unwrap());
++    // `env::join_paths` is not available on WASI (there is no `PATH` to search).
++    if cfg!(not(target_family = "wasm")) {
++        cmd.env("PATH", env::join_paths(new_path).unwrap());
++    }
+ 
+     // FIXME: Move `/LIBPATH` addition for uwp targets from the linker construction
+     // to the linker args construction.
+diff --git a/compiler/rustc_driver_impl/src/lib.rs b/compiler/rustc_driver_impl/src/lib.rs
+index e2c9f3f909b..f5f47649ace 100644
+--- a/compiler/rustc_driver_impl/src/lib.rs
++++ b/compiler/rustc_driver_impl/src/lib.rs
+@@ -1423,7 +1423,7 @@ fn ice_path_with_config(config: Option<&UnstableOptions>) -> &'static Option<Pat
+         };
+         // Don't use a standard datetime format because Windows doesn't support `:` in paths
+         let file_now = jiff::Zoned::now().strftime("%Y-%m-%dT%H_%M_%S");
+-        let pid = std::process::id();
++        let pid = if cfg!(target_family = "wasm") { 1 } else { std::process::id() };
+         path.push(format!("rustc-ice-{file_now}-{pid}.txt"));
+         Some(path)
+     })
+diff --git a/compiler/rustc_interface/src/util.rs b/compiler/rustc_interface/src/util.rs
+index 23b152bd572..6522a6f6805 100644
+--- a/compiler/rustc_interface/src/util.rs
++++ b/compiler/rustc_interface/src/util.rs
+@@ -121,7 +121,13 @@ pub(crate) fn check_abi_required_features(sess: &Session) {
+ }
+ 
+ pub static STACK_SIZE: OnceLock<usize> = OnceLock::new();
+-pub const DEFAULT_STACK_SIZE: usize = 16 * 1024 * 1024;
++// WASI cannot grow or configure the main thread's stack, and rustc's recursive
++// frontend needs more than the native default when it cannot spawn a thread.
++pub const DEFAULT_STACK_SIZE: usize = if cfg!(target_family = "wasm") {
++    32 * 1024 * 1024
++} else {
++    16 * 1024 * 1024
++};
+ 
+ fn init_stack_size(early_dcx: &EarlyDiagCtxt) -> usize {
+     // Obey the environment setting or default
+@@ -164,6 +170,18 @@ fn run_in_thread_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
+     // the parallel compiler, in particular to ensure there is no accidental
+     // sharing of data between the main thread and the compilation thread
+     // (which might cause problems for the parallel compiler).
++    //
++    // WASI (preview1) cannot spawn threads, so run on the main thread there.
++    // The stack size is fixed by the linker for the main thread instead.
++    if cfg!(target_family = "wasm") {
++        return rustc_span::create_session_globals_then(
++            edition,
++            extra_symbols,
++            Some(sm_inputs),
++            || f(CurrentGcx::new()),
++        );
++    }
++
+     let builder = thread::Builder::new().name("rustc".to_string()).stack_size(thread_stack_size);
+ 
+     // We build the session globals and run `f` on the spawned thread, because
+diff --git a/compiler/rustc_metadata/src/host_dylib.rs b/compiler/rustc_metadata/src/host_dylib.rs
+index 9bd2a57fcd2..fc02e5fffc1 100644
+--- a/compiler/rustc_metadata/src/host_dylib.rs
++++ b/compiler/rustc_metadata/src/host_dylib.rs
+@@ -1,7 +1,10 @@
++#[cfg(any(unix, windows))]
+ use std::error::Error;
+ use std::path::Path;
++#[cfg(any(unix, windows))]
+ use std::time::Duration;
+ 
++#[cfg(any(unix, windows))]
+ use rustc_fs_util::try_canonicalize;
+ use rustc_proc_macro::bridge::client::Client as ProcMacroClient;
+ use rustc_session::StableCrateId;
+@@ -9,10 +12,12 @@
+ 
+ use crate::locator::CrateError;
+ 
++#[cfg(any(unix, windows))]
+ fn format_dlopen_err(e: &(dyn std::error::Error + 'static)) -> String {
+     e.sources().map(|e| format!(": {e}")).collect()
+ }
+ 
++#[cfg(any(unix, windows))]
+ fn attempt_load_dylib(path: &Path) -> Result<libloading::Library, libloading::Error> {
+     #[cfg(target_os = "aix")]
+     if let Some(ext) = path.extension()
+@@ -40,6 +45,7 @@ fn attempt_load_dylib(path: &Path) -> Result<libloading::Library, libloading::Er
+ // proc-macro DLL with `Error::LoadLibraryExW`. It is suspected that something in the
+ // system still holds a lock on the file, so we retry a few times before calling it
+ // an error.
++#[cfg(any(unix, windows))]
+ fn load_dylib(path: &Path, max_attempts: usize) -> Result<libloading::Library, String> {
+     assert!(max_attempts > 0);
+ 
+@@ -103,6 +109,7 @@ fn from(err: DylibError) -> CrateError {
+     }
+ }
+ 
++#[cfg(any(unix, windows))]
+ pub unsafe fn load_symbol_from_dylib<T: Copy>(
+     path: &Path,
+     sym_name: &str,
+@@ -123,6 +130,17 @@ pub unsafe fn load_symbol_from_dylib<T: Copy>(
+     Ok(*sym)
+ }
+ 
++#[cfg(not(any(unix, windows)))]
++pub unsafe fn load_symbol_from_dylib<T: Copy>(
++    path: &Path,
++    _sym_name: &str,
++) -> Result<T, DylibError> {
++    Err(DylibError::DlOpen(
++        path.display().to_string(),
++        "dlopen not supported on this platform".to_owned(),
++    ))
++}
++
+ pub(crate) fn dlsym_proc_macros(
+     path: &Path,
+     stable_crate_id: StableCrateId,

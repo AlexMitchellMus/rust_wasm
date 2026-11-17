@@ -1,0 +1,105 @@
+From 66b874f99265d784c4f2a89c6de5e42bc7b65780 Mon Sep 17 00:00:00 2001
+From: bjorn3 <17426603+bjorn3@users.noreply.github.com>
+Date: Thu, 26 Sep 2024 18:24:29 +0200
+Subject: [PATCH 3/5] Link against lld for linking compiled object files
+
+(cherry picked from commit bab49c215b1e4e021420afe18ab9790a5f0b43b0)
+---
+ compiler/rustc_codegen_ssa/src/back/link.rs | 23 +++++++++++++++++++++
+ compiler/rustc_llvm/build.rs                | 10 +++++++++
+ compiler/rustc_llvm/llvm-wrapper/LLD.cpp    | 11 ++++++++++
+ src/bootstrap/src/core/build_steps/llvm.rs  |  1 +
+ 4 files changed, 45 insertions(+)
+ create mode 100644 compiler/rustc_llvm/llvm-wrapper/LLD.cpp
+
+diff --git a/compiler/rustc_codegen_ssa/src/back/link.rs b/compiler/rustc_codegen_ssa/src/back/link.rs
+index 014e3ee8bd3..d869e7d84a9 100644
+--- a/compiler/rustc_codegen_ssa/src/back/link.rs
++++ b/compiler/rustc_codegen_ssa/src/back/link.rs
+@@ -1281,6 +1281,29 @@ fn link_natively(
+ 
+     // Invoke the system linker
+     info!("{cmd:?}");
++
++    #[cfg(target_os = "wasi")]
++    if matches!(flavor, LinkerFlavor::Gnu(Cc::No, Lld::Yes) | LinkerFlavor::WasmLld(Cc::No)) {
++        extern "C" {
++            fn RustRunLld(
++                argc: std::ffi::c_int,
++                argv: *const *const std::ffi::c_char,
++            ) -> std::ffi::c_int;
++        }
++
++        let cmd = cmd.command();
++        println!("Linking using {cmd:?}");
++        let mut args = cmd
++            .get_args()
++            .map(|arg| std::ffi::CString::new(arg.as_encoded_bytes()).unwrap())
++            .collect::<Vec<_>>();
++        args.insert(0, std::ffi::CString::new(cmd.get_program().as_encoded_bytes()).unwrap());
++        let argv = args.iter().map(|arg| arg.as_ptr()).collect::<Vec<_>>();
++
++        let ret = unsafe { RustRunLld(args.len() as std::ffi::c_int, argv.as_ptr()) };
++        std::process::exit(ret);
++    }
++
+     let unknown_arg_regex =
+         Regex::new(r"(unknown|unrecognized) (command line )?(option|argument)").unwrap();
+     let mut prog;
+diff --git a/compiler/rustc_llvm/build.rs b/compiler/rustc_llvm/build.rs
+index f3376e20fcf..5bad22a623f 100644
+--- a/compiler/rustc_llvm/build.rs
++++ b/compiler/rustc_llvm/build.rs
+@@ -333,6 +333,9 @@ fn main() {
+     }
+ 
+     rerun_if_changed_anything_in_dir(Path::new("llvm-wrapper"));
++    if target.contains("wasi") {
++        cfg.file("llvm-wrapper/LLD.cpp");
++    }
+     cfg.file("llvm-wrapper/PassWrapper.cpp")
+         .file("llvm-wrapper/RustWrapper.cpp")
+         .file("llvm-wrapper/CoverageMappingWrapper.cpp")
+@@ -459,6 +462,13 @@ fn main() {
+         println!("cargo:rustc-link-lib={kind}={name}");
+     }
+ 
++    if target.contains("wasi") {
++        println!("cargo:rustc-link-lib=static=LLVMOption");
++        println!("cargo:rustc-link-lib=static=lldCommon");
++        println!("cargo:rustc-link-lib=static=lldELF");
++        println!("cargo:rustc-link-lib=static=lldWasm");
++    }
++
+     // LLVM ldflags
+     //
+     // If we're a cross-compile of LLVM then unfortunately we can't trust these
+diff --git a/compiler/rustc_llvm/llvm-wrapper/LLD.cpp b/compiler/rustc_llvm/llvm-wrapper/LLD.cpp
+new file mode 100644
+index 00000000000..182ea9534b3
+--- /dev/null
++++ b/compiler/rustc_llvm/llvm-wrapper/LLD.cpp
+@@ -0,0 +1,11 @@
++#include "lld/Common/Driver.h"
++
++LLD_HAS_DRIVER(elf)
++LLD_HAS_DRIVER(wasm)
++
++extern "C" int RustRunLld(int argc, char **argv) {
++    llvm::ArrayRef<const char *> args(argv, argv + argc);
++    auto r = lld::lldMain(args, llvm::outs(), llvm::errs(),
++                         {{lld::Gnu, &lld::elf::link}, {lld::Wasm, &lld::wasm::link}});
++    return r.retCode;
++}
+diff --git a/src/bootstrap/src/core/build_steps/llvm.rs b/src/bootstrap/src/core/build_steps/llvm.rs
+index d4674136273..8b747865079 100644
+--- a/src/bootstrap/src/core/build_steps/llvm.rs
++++ b/src/bootstrap/src/core/build_steps/llvm.rs
+@@ -627,6 +627,7 @@ fn run(self, builder: &Builder<'_>) -> LlvmOutput {
+                 .define("LLVM_INCLUDE_TESTS", "OFF")
+                 .define("LLVM_INCLUDE_BENCHMARKS", "OFF")
+                 .define("LLVM_INCLUDE_DOCS", "OFF")
++                .define("LLVM_ENABLE_PROJECTS", "lld")
+                 .define("LLVM_TOOL_BUGPOINT_BUILD", "OFF")
+                 .define("LLVM_TOOL_BUGPOINT_PASSES_BUILD", "OFF")
+                 .define("LLVM_TOOL_DSYMUTIL_BUILD", "OFF")
