@@ -130,11 +130,22 @@ jobs:
 
       - name: build install
         working-directory: '${{ github.workspace }}/rust'
+        shell: bash
         env:
           RUST_CONFIGURE_ARGS: "-W warnings"
           RUSTFLAGS: "-W warnings"
         run: |
-          ./x.py install --config config.llvm.toml
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/build-with-diagnostics.sh" \
+            build.log ./x.py install --config config.llvm.toml
+
+      - name: upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-install-abort
+          path: ${{ github.workspace }}/rust/build.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: cache build directory
         uses: actions/cache/save@v4
@@ -163,6 +174,9 @@ jobs:
   # ============================================================
   install-unwind:
     runs-on: ubuntu-latest
+    # Fail fast: never spend ~1h more on the unwind build if the default
+    # (panic=abort) build cannot even compile.
+    needs: install-abort
     if: ${{ (inputs.job || 'install') == 'install' }}
     steps:
       - name: copy source
@@ -253,11 +267,22 @@ jobs:
 
       - name: build install unwind
         working-directory: '${{ github.workspace }}/rust'
+        shell: bash
         env:
           RUST_CONFIGURE_ARGS: "-W warnings"
           RUSTFLAGS: "-Cpanic=unwind -W warnings"
         run: |
-          ./x.py install --config config.llvm.toml
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/build-with-diagnostics.sh" \
+            build.log ./x.py install --config config.llvm.toml
+
+      - name: upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-install-unwind
+          path: ${{ github.workspace }}/rust/build.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: prepare unwind artifacts
         working-directory: '${{ github.workspace }}/rust'
@@ -613,18 +638,29 @@ jobs:
 
       - name: build dist
         working-directory: '${{ github.workspace }}/rust'
+        shell: bash
         env:
           RUST_CONFIGURE_ARGS: "-W warnings"
           RUSTFLAGS: "-W warnings"
         run: |
           export RUST_CONFIGURE_ARGS='${{ env.RUST_CONFIGURE_ARGS }}'
           # ./x.py install --config config.llvm.toml
-          ./x.py build library --config config.llvm.toml --stage 1
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/build-with-diagnostics.sh" \
+            build.log ./x.py build library --config config.llvm.toml --stage 1
 
           # copy files
           mkdir -p dist/lib/rustlib
           rsync -av --exclude="rustc-src" build/x86_64-unknown-linux-gnu/stage1/lib/rustlib/ dist/lib/rustlib/
           rm -rf dist/lib/rustlib/x86_64-unknown-linux-gnu/bin
+
+      - name: upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-dist-linux
+          path: ${{ github.workspace }}/rust/build.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Configure git to trust the workspace despite the different owner
         run:
@@ -750,14 +786,25 @@ jobs:
 
       - name: build dist
         working-directory: '${{ github.workspace }}/rust'
+        shell: bash
         env:
           RUST_CONFIGURE_ARGS: "-W warnings"
           RUSTFLAGS: "-W warnings"
         run: |
-          ./x.py build library --config config.llvm.toml --stage 1
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/build-with-diagnostics.sh" \
+            build.log ./x.py build library --config config.llvm.toml --stage 1
           mkdir -p dist/lib/rustlib
           rsync -av --exclude="rustc-src" build/aarch64-apple-darwin/stage1/lib/rustlib/ dist/lib/rustlib/
           rm -rf dist/lib/rustlib/aarch64-apple-darwin/bin
+
+      - name: upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-dist-macos
+          path: ${{ github.workspace }}/rust/build.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Configure git to trust the workspace despite the different owner
         run:
@@ -892,7 +939,8 @@ jobs:
           RUST_CONFIGURE_ARGS: "-W warnings"
           RUSTFLAGS: "-W warnings"
         run: |
-          python ./x.py build library --config config.llvm.toml --stage 1
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/build-with-diagnostics.sh" \
+            build.log python ./x.py build library --config config.llvm.toml --stage 1
           
           rm -rf dist
           mkdir -p dist/lib/rustlib
@@ -908,6 +956,15 @@ jobs:
           
           # Cleanup target-specific bin (consistent with Linux/Mac)
           rm -rf dist/lib/rustlib/x86_64-pc-windows-msvc/bin
+
+      - name: upload build log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log-dist-windows
+          path: ${{ github.workspace }}/rust/build.log
+          if-no-files-found: ignore
+          retention-days: 14
 
       - name: Configure git to trust the workspace despite the different owner
         run:
