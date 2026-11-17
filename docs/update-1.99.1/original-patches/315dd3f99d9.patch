@@ -1,0 +1,84 @@
+315dd3f99d911c80af0fb3afbade10903712cdaa
+Make linking for wasm32-wasip1 work by default
+
+
+diff --git a/comment.txt b/comment.txt
+index 231b003b3d2..f669c73e64b 100644
+--- a/comment.txt
++++ b/comment.txt
+@@ -24,7 +24,7 @@ WASI_SDK_PATH=`pwd`/wasi-sdk-24.0-x86_64-linux WASI_SYSROOT=`pwd`/wasi-sdk-24.0-
+ If you just want to run it, https://github.com/oligamiq/rust_wasm/tree/main/rustc_llvm
+ ```
+ $ mkdir tmp
+-$ echo 'fn main() { println!("Hello World!"); }' | wasmtime run -Sthreads=y -Spreview2=n --dir tmp::/ --dir dist --env RUST_MIN_STACK=16777216 dist/bin/rustc.wasm - --sysroot dist --target wasm32-wasip1-threads -Csave-temps
++$ echo 'fn main() { println!("Hello World!"); }' | wasmtime run -Sthreads=y -Spreview2=n --dir tmp::/ --dir dist --env RUST_MIN_STACK=16777216 dist/bin/rustc.wasm - --sysroot dist --target x86_64-unknown-linux-gnu -Csave-temps
+ $ gcc -fuse-ld=lld tmp/rmeta*/lib.rmeta tmp/rust_out.*.o dist/lib/rustlib/x86_64-unknown-linux-gnu/lib/lib*.rlib -o rust_out
+ $ ./rust_out
+ Hello World!
+@@ -33,8 +33,7 @@ Hello World!
+ to Wasi
+ ```
+ $ mkdir tmp
+-$ echo 'fn main() { println!("Hello World!"); }' | wasmtime run -Sthreads=y -Spreview2=n --dir tmp::/ --dir dist --env RUST_MIN_STACK=16777216 dist/bin/rustc.wasm - --sysroot dist --target wasm32-wasip1-threads -Csave-temps
+-$ wasi-sdk-24.0-x86_64-linux/bin/wasm-ld --shared-memory --max-memory=1073741824 --import-memory --export __main_void -z stack-size=1048576 --stack-first --allow-undefined --no-demangle --import-memory --export-memory --shared-memory dist/lib/rustlib/wasm32-wasip1-threads/lib/self-contained/crt1-command.o tmp/rust_out.*.o dist/lib/rustlib/wasm32-wasip1-threads/lib/lib*.rlib -L dist/lib/rustlib/wasm32-wasip1-threads/lib/self-contained -lc -o rust_out.wasm
+-$ wasmtime run -Sthreads=y rust_out.wasm
++$ echo 'fn main() { println!("Hello World!"); }' | wasmtime run -Sthreads=y -Spreview2=n --dir tmp::/ --dir dist --env RUST_MIN_STACK=16777216 dist/bin/rustc.wasm - --sysroot dist --target wasm32-wasip1
++$ wasmtime run tmp/rust_out.wasm
+ Hello World!
+ ```
+diff --git a/compiler/rustc_target/src/spec/targets/wasm32_wasip1.rs b/compiler/rustc_target/src/spec/targets/wasm32_wasip1.rs
+index 7ea493a30ad..1cd30f21bec 100644
+--- a/compiler/rustc_target/src/spec/targets/wasm32_wasip1.rs
++++ b/compiler/rustc_target/src/spec/targets/wasm32_wasip1.rs
+@@ -23,7 +23,7 @@ pub(crate) fn target() -> Target {
+     options.post_link_objects_self_contained = crt_objects::post_wasi_self_contained();
+ 
+     // FIXME: Figure out cases in which WASM needs to link with a native toolchain.
+-    options.link_self_contained = LinkSelfContainedDefault::False;
++    options.link_self_contained = LinkSelfContainedDefault::True;
+ 
+     // Right now this is a bit of a workaround but we're currently saying that
+     // the target by default has a static crt which we're taking as a signal
+diff --git a/compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs b/compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs
+index f4c1dfadd3d..374ecdc3d55 100644
+--- a/compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs
++++ b/compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs
+@@ -35,7 +35,7 @@ pub(crate) fn target() -> Target {
+     options.post_link_objects_self_contained = crt_objects::post_wasi_self_contained();
+ 
+     // FIXME: Figure out cases in which WASM needs to link with a native toolchain.
+-    options.link_self_contained = LinkSelfContainedDefault::False;
++    options.link_self_contained = LinkSelfContainedDefault::True;
+ 
+     // Right now this is a bit of a workaround but we're currently saying that
+     // the target by default has a static crt which we're taking as a signal
+diff --git a/config.llvm.toml b/config.llvm.toml
+index ababcbb76a0..f5a9ccfc6cc 100644
+--- a/config.llvm.toml
++++ b/config.llvm.toml
+@@ -10,8 +10,6 @@ debug = false
+ debuginfo-level = 0
+ 
+ [llvm]
+-cflags = "-march=native"
+-cxxflags = "-march=native"
+ static-libstdcpp = true
+ ninja = false
+ download-ci-llvm = false
+diff --git a/src/bootstrap/src/core/builder/cargo.rs b/src/bootstrap/src/core/builder/cargo.rs
+index 0688a1d6892..a8181f2d0af 100644
+--- a/src/bootstrap/src/core/builder/cargo.rs
++++ b/src/bootstrap/src/core/builder/cargo.rs
+@@ -247,6 +247,12 @@ impl Cargo {
+             }
+         }
+ 
++        if target.contains("wasi") {
++            // link-self-contained needs lld to be present, but getting it to
++            // link for wasi is a bit difficult.
++            self.rustflags.arg("-Clink-self-contained=no");
++        }
++
+         for arg in linker_args(builder, compiler.host, LldThreads::Yes) {
+             self.hostflags.arg(&arg);
+         }

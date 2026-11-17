@@ -1,0 +1,62 @@
+### 2af9f557993 [WIP] Support compiling rustc to WebAssembly
+ 22 files changed, 404 insertions(+), 36 deletions(-)
+files:
+  .gitignore
+  Cargo.lock
+  Cargo.toml
+  comment.txt
+  compiler/rustc/Cargo.toml
+  compiler/rustc_codegen_cranelift/Cargo.toml
+  compiler/rustc_codegen_cranelift/src/driver/aot.rs
+  compiler/rustc_codegen_cranelift/src/lib.rs
+  compiler/rustc_codegen_ssa/src/back/link.rs
+  compiler/rustc_codegen_ssa/src/back/linker.rs
+  compiler/rustc_driver/Cargo.toml
+  compiler/rustc_driver_impl/Cargo.toml
+  compiler/rustc_driver_impl/src/lib.rs
+  compiler/rustc_interface/Cargo.toml
+  compiler/rustc_interface/src/util.rs
+  compiler/rustc_metadata/src/creader.rs
+  compiler/rustc_session/src/filesearch.rs
+  compiler/rustc_target/src/spec/targets/wasm32_wasip1.rs
+  compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs
+  config.toml
+  src/bootstrap/src/core/build_steps/compile.rs
+  src/bootstrap/src/lib.rs
+### 08ec940e111 Compile rustc+LLVM to wasm
+ 10 files changed, 269 insertions(+), 10 deletions(-)
+files:
+  .gitmodules
+  comment.txt
+  compiler/rustc_codegen_ssa/src/back/linker.rs
+  compiler/rustc_interface/src/util.rs
+  compiler/rustc_llvm/build.rs
+  compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs
+  config.llvm.toml
+  src/bootstrap/src/core/build_steps/compile.rs
+  src/bootstrap/src/core/build_steps/llvm.rs
+  src/llvm-project
+### 132c6388ad7 Update comment.txt
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+files:
+  comment.txt
+### bab49c215b1 Link against lld for linking compiled object files
+ 5 files changed, 43 insertions(+), 2 deletions(-)
+files:
+  compiler/rustc_codegen_ssa/src/back/link.rs
+  compiler/rustc_llvm/build.rs
+  compiler/rustc_llvm/llvm-wrapper/LLD.cpp
+  config.llvm.toml
+  src/bootstrap/src/core/build_steps/llvm.rs
+### 315dd3f99d9 Make linking for wasm32-wasip1 work by default
+ 5 files changed, 11 insertions(+), 8 deletions(-)
+files:
+  comment.txt
+  compiler/rustc_target/src/spec/targets/wasm32_wasip1.rs
+  compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs
+  config.llvm.toml
+  src/bootstrap/src/core/builder/cargo.rs
+### f7a223c1c21 Disable rpath for lld when requested
+ 1 file changed, 3 insertions(+)
+files:
+  src/bootstrap/src/core/build_steps/llvm.rs

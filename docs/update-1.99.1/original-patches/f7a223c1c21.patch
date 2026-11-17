@@ -1,0 +1,19 @@
+f7a223c1c21d00cbd63b75f8836b8e64192f24b5
+Disable rpath for lld when requested
+(unrelated to getting rustc to compile for wasi)
+
+
+diff --git a/src/bootstrap/src/core/build_steps/llvm.rs b/src/bootstrap/src/core/build_steps/llvm.rs
+index 53ddb1c7270..dbd0b80924c 100644
+--- a/src/bootstrap/src/core/build_steps/llvm.rs
++++ b/src/bootstrap/src/core/build_steps/llvm.rs
+@@ -1242,6 +1242,9 @@ impl Step for Lld {
+             // `$ORIGIN` would otherwise be expanded when the `LdFlags` are passed verbatim to
+             // cmake.
+             ldflags.push_all("-Wl,-rpath,'$ORIGIN/../../../'");
++        } else {
++            // CMake defaults to building executables with rpath enabled.
++            cfg.define("CMAKE_SKIP_RPATH", "ON");
+         }
+ 
+         configure_cmake(builder, target, &mut cfg, true, ldflags, &[]);

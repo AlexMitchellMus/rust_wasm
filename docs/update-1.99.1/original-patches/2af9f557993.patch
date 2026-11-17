@@ -1,0 +1,922 @@
+2af9f5579939354d169f0a168db567539d2a8c7b
+[WIP] Support compiling rustc to WebAssembly
+
+
+diff --git a/.gitignore b/.gitignore
+index 948133cd76e..276f420485c 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -98,3 +98,8 @@ flake.lock
+ default.nix
+ 
+ # Before adding new lines, see the comment at the top.
++
++/wasi-sdk-*
++/wabt-*
++/tmp
++/rust_out
+diff --git a/Cargo.lock b/Cargo.lock
+index 29176a3ae8e..b9694de488b 100644
+--- a/Cargo.lock
++++ b/Cargo.lock
+@@ -198,6 +198,12 @@ dependencies = [
+  "object 0.36.5",
+ ]
+ 
++[[package]]
++name = "arbitrary"
++version = "1.3.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "7d5a26814d8dcb93b0e5a0ff3c6d80a8843bafb21b39e8e18a6f05471870e110"
++
+ [[package]]
+ name = "arrayref"
+ version = "0.3.9"
+@@ -775,6 +781,152 @@ dependencies = [
+  "libc",
+ ]
+ 
++[[package]]
++name = "cranelift-bforest"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "540b193ff98b825a1f250a75b3118911af918a734154c69d80bcfcf91e7e9522"
++dependencies = [
++ "cranelift-entity",
++]
++
++[[package]]
++name = "cranelift-bitset"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "c7cb269598b9557ab942d687d3c1086d77c4b50dcf35813f3a65ba306fd42279"
++
++[[package]]
++name = "cranelift-codegen"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "46566d7c83a8bff4150748d66020f4c7224091952aa4b4df1ec4959c39d937a1"
++dependencies = [
++ "bumpalo",
++ "cranelift-bforest",
++ "cranelift-bitset",
++ "cranelift-codegen-meta",
++ "cranelift-codegen-shared",
++ "cranelift-control",
++ "cranelift-entity",
++ "cranelift-isle",
++ "gimli 0.31.1",
++ "hashbrown 0.14.5",
++ "log",
++ "regalloc2",
++ "rustc-hash 2.0.0",
++ "smallvec",
++ "target-lexicon",
++]
++
++[[package]]
++name = "cranelift-codegen-meta"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2df8a86a34236cc75a8a6a271973da779c2aeb36c43b6e14da474cf931317082"
++dependencies = [
++ "cranelift-codegen-shared",
++]
++
++[[package]]
++name = "cranelift-codegen-shared"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "cf75340b6a57b7c7c1b74f10d3d90883ee6d43a554be8131a4046c2ebcf5eb65"
++
++[[package]]
++name = "cranelift-control"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "2e84495bc5d23d86aad8c86f8ade4af765b94882af60d60e271d3153942f1978"
++dependencies = [
++ "arbitrary",
++]
++
++[[package]]
++name = "cranelift-entity"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "963c17147b80df351965e57c04d20dbedc85bcaf44c3436780a59a3f1ff1b1c2"
++dependencies = [
++ "cranelift-bitset",
++]
++
++[[package]]
++name = "cranelift-frontend"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "727f02acbc4b4cb2ba38a6637101d579db50190df1dd05168c68e762851a3dd5"
++dependencies = [
++ "cranelift-codegen",
++ "log",
++ "smallvec",
++ "target-lexicon",
++]
++
++[[package]]
++name = "cranelift-isle"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "32b00cc2e03c748f2531eea01c871f502b909d30295fdcad43aec7bf5c5b4667"
++
++[[package]]
++name = "cranelift-jit"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "f74630af581f32b99c8f4e06ee45799383ecc0795e3ff8aa86b7584bb2d643fd"
++dependencies = [
++ "anyhow",
++ "cranelift-codegen",
++ "cranelift-control",
++ "cranelift-entity",
++ "cranelift-module",
++ "cranelift-native",
++ "libc",
++ "log",
++ "region",
++ "target-lexicon",
++ "wasmtime-jit-icache-coherence",
++ "windows-sys 0.59.0",
++]
++
++[[package]]
++name = "cranelift-module"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "6aaa16c4f18a15be310df221ea544f516acc42fc58ca96e09a3d08651744efa1"
++dependencies = [
++ "anyhow",
++ "cranelift-codegen",
++ "cranelift-control",
++]
++
++[[package]]
++name = "cranelift-native"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "bbeaf978dc7c1a2de8bbb9162510ed218eb156697bc45590b8fbdd69bb08e8de"
++dependencies = [
++ "cranelift-codegen",
++ "libc",
++ "target-lexicon",
++]
++
++[[package]]
++name = "cranelift-object"
++version = "0.113.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "3ff68f0ef71bdfd21c2b94743a53347abfd82d78a2a36dc753f7c33d063ee25d"
++dependencies = [
++ "anyhow",
++ "cranelift-codegen",
++ "cranelift-control",
++ "cranelift-module",
++ "log",
++ "object 0.36.5",
++ "target-lexicon",
++]
++
+ [[package]]
+ name = "crc32fast"
+ version = "1.4.2"
+@@ -2114,6 +2266,15 @@ version = "0.1.1"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "c41e0c4fef86961ac6d6f8a82609f55f31b05e4fce149ac5710e439df7619ba4"
+ 
++[[package]]
++name = "mach2"
++version = "0.4.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "19b955cdeb2a02b9117f121ce63aa52d08ade45de53e48fe6a38b39c10f6f709"
++dependencies = [
++ "libc",
++]
++
+ [[package]]
+ name = "maplit"
+ version = "1.0.2"
+@@ -2977,6 +3138,19 @@ dependencies = [
+  "thiserror",
+ ]
+ 
++[[package]]
++name = "regalloc2"
++version = "0.10.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "12908dbeb234370af84d0579b9f68258a0f67e201412dd9a2814e6f45b2fc0f0"
++dependencies = [
++ "hashbrown 0.14.5",
++ "log",
++ "rustc-hash 2.0.0",
++ "slice-group-by",
++ "smallvec",
++]
++
+ [[package]]
+ name = "regex"
+ version = "1.11.1"
+@@ -3036,6 +3210,18 @@ version = "0.8.5"
+ source = "registry+https://github.com/rust-lang/crates.io-index"
+ checksum = "2b15c43186be67a4fd63bee50d0303afffcef381492ebe2c5d87f324e1b8815c"
+ 
++[[package]]
++name = "region"
++version = "3.0.2"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "e6b6ebd13bc009aef9cd476c1310d49ac354d36e240cf1bd753290f3dc7199a7"
++dependencies = [
++ "bitflags 1.3.2",
++ "libc",
++ "mach2",
++ "windows-sys 0.52.0",
++]
++
+ [[package]]
+ name = "remote-test-client"
+ version = "0.1.0"
+@@ -3400,6 +3586,40 @@ dependencies = [
+  "tracing",
+ ]
+ 
++[[package]]
++name = "rustc_codegen_cranelift"
++version = "0.1.0"
++dependencies = [
++ "cranelift-codegen",
++ "cranelift-frontend",
++ "cranelift-jit",
++ "cranelift-module",
++ "cranelift-native",
++ "cranelift-object",
++ "gimli 0.31.1",
++ "indexmap",
++ "jobserver",
++ "libloading",
++ "object 0.36.5",
++ "rustc_abi",
++ "rustc_ast",
++ "rustc_codegen_ssa",
++ "rustc_data_structures",
++ "rustc_errors",
++ "rustc_fs_util",
++ "rustc_hir",
++ "rustc_incremental",
++ "rustc_index",
++ "rustc_metadata",
++ "rustc_middle",
++ "rustc_monomorphize",
++ "rustc_session",
++ "rustc_span",
++ "rustc_target",
++ "smallvec",
++ "target-lexicon",
++]
++
+ [[package]]
+ name = "rustc_codegen_llvm"
+ version = "0.0.0"
+@@ -3868,6 +4088,7 @@ dependencies = [
+  "rustc_attr",
+  "rustc_borrowck",
+  "rustc_builtin_macros",
++ "rustc_codegen_cranelift",
+  "rustc_codegen_llvm",
+  "rustc_codegen_ssa",
+  "rustc_const_eval",
+@@ -4884,6 +5105,12 @@ dependencies = [
+  "autocfg",
+ ]
+ 
++[[package]]
++name = "slice-group-by"
++version = "0.3.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "826167069c09b99d56f31e9ae5c99049e932a98c9dc2dac47645b08dbbf76ba7"
++
+ [[package]]
+ name = "smallvec"
+ version = "1.13.2"
+@@ -5105,6 +5332,12 @@ dependencies = [
+  "xattr",
+ ]
+ 
++[[package]]
++name = "target-lexicon"
++version = "0.12.16"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "61c41af27dd6d1e27b1b16b489db798443478cef1f06a660c96db617ba5de3b1"
++
+ [[package]]
+ name = "tempfile"
+ version = "3.13.0"
+@@ -5891,6 +6124,18 @@ dependencies = [
+  "serde",
+ ]
+ 
++[[package]]
++name = "wasmtime-jit-icache-coherence"
++version = "26.0.1"
++source = "registry+https://github.com/rust-lang/crates.io-index"
++checksum = "da47fba49af72581bc0dc67c8faaf5ee550e6f106e285122a184a675193701a5"
++dependencies = [
++ "anyhow",
++ "cfg-if",
++ "libc",
++ "windows-sys 0.59.0",
++]
++
+ [[package]]
+ name = "wast"
+ version = "219.0.1"
+diff --git a/Cargo.toml b/Cargo.toml
+index b773030b4ca..ad4dccd10ee 100644
+--- a/Cargo.toml
++++ b/Cargo.toml
+@@ -51,7 +51,6 @@ members = [
+ 
+ exclude = [
+   "build",
+-  "compiler/rustc_codegen_cranelift",
+   "compiler/rustc_codegen_gcc",
+   "src/bootstrap",
+   "tests/rustdoc-gui",
+diff --git a/comment.txt b/comment.txt
+new file mode 100644
+index 00000000000..cf4db963835
+--- /dev/null
++++ b/comment.txt
+@@ -0,0 +1,18 @@
++Got a new version up. This time all logic to handle using different codegen backends for the different stages, so you don't need to do a multi stage process.
++
++* Make sure you are running on Linux.
++* Clone https://github.com/bjorn3/rust
++* Checkout the `compile_rustc_for_wasm16` branch
++* Download and extract https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz into the rust checkout.
++* Run `./x.py install` to build the compiler and install it into the dist dir.
++* Use `wasmtime run --dir tmp::/ --dir dist dist/bin/rustc.wasm --sysroot dist --target x86_64-unknown-linux-gnu` to run rustc.
++
++Note that linking is not supported as wasi doesn't allow spawning executables. You can use something like the following to compile using the wasm32-wasi rustc and then link using native gcc:
++
++```
++$ mkdir tmp
++$ echo 'fn main() { println!("Hello World!"); }' | wasmtime run -Sthreads=y -Spreview2=n --dir tmp::/ --dir dist --env RUST_MIN_STACK=16777216 dist/bin/rustc.wasm - --sysroot dist --target x86_64-unknown-linux-gnu -Csave-temps
++$ gcc -fuse-ld=lld tmp/rmeta*/lib.rmeta tmp/rust_out.* dist/lib/rustlib/x86_64-unknown-linux-gnu/lib/lib*.rlib -o rust_out
++$ ./rust_out
++Hello World!
++```
+diff --git a/compiler/rustc/Cargo.toml b/compiler/rustc/Cargo.toml
+index f85c30ac7ec..0d4c4ce71e0 100644
+--- a/compiler/rustc/Cargo.toml
++++ b/compiler/rustc/Cargo.toml
+@@ -27,6 +27,7 @@ features = ['unprefixed_malloc_on_supported_platforms']
+ 
+ [features]
+ # tidy-alphabetical-start
++cranelift = ['rustc_driver_impl/cranelift']
+ jemalloc = ['dep:jemalloc-sys']
+ llvm = ['rustc_driver_impl/llvm']
+ max_level_info = ['rustc_driver_impl/max_level_info']
+diff --git a/compiler/rustc_codegen_cranelift/Cargo.toml b/compiler/rustc_codegen_cranelift/Cargo.toml
+index f352ef72cb0..bc10e4b50ca 100644
+--- a/compiler/rustc_codegen_cranelift/Cargo.toml
++++ b/compiler/rustc_codegen_cranelift/Cargo.toml
+@@ -4,7 +4,7 @@ version = "0.1.0"
+ edition = "2021"
+ 
+ [lib]
+-crate-type = ["dylib"]
++crate-type = ["lib", "dylib"]
+ 
+ [dependencies]
+ # These have to be in sync with each other
+@@ -22,7 +22,24 @@ indexmap = "2.0.0"
+ libloading = { version = "0.8.0", optional = true }
+ smallvec = "1.8.1"
+ 
+-[patch.crates-io]
++jobserver = "0.1.22"
++rustc_middle = { path = "../rustc_middle" }
++rustc_abi = { path = "../rustc_abi" }
++rustc_ast = { path = "../rustc_ast" }
++rustc_codegen_ssa = { path = "../rustc_codegen_ssa" }
++rustc_data_structures = { path = "../rustc_data_structures" }
++rustc_errors = { path = "../rustc_errors" }
++rustc_fs_util = { path = "../rustc_fs_util" }
++rustc_hir = { path = "../rustc_hir" }
++rustc_incremental = { path = "../rustc_incremental" }
++rustc_index = { path = "../rustc_index" }
++rustc_metadata = { path = "../rustc_metadata" }
++rustc_monomorphize = { path = "../rustc_monomorphize" }
++rustc_session = { path = "../rustc_session" }
++rustc_span = { path = "../rustc_span" }
++rustc_target = { path = "../rustc_target" }
++
++#[patch.crates-io]
+ # Uncomment to use local checkout of cranelift
+ #cranelift-codegen = { path = "../wasmtime/cranelift/codegen" }
+ #cranelift-frontend = { path = "../wasmtime/cranelift/frontend" }
+diff --git a/compiler/rustc_codegen_cranelift/src/driver/aot.rs b/compiler/rustc_codegen_cranelift/src/driver/aot.rs
+index 8eab73ad5f9..ba18e4ec9e5 100644
+--- a/compiler/rustc_codegen_cranelift/src/driver/aot.rs
++++ b/compiler/rustc_codegen_cranelift/src/driver/aot.rs
+@@ -26,7 +26,7 @@ use rustc_session::Session;
+ use rustc_session::config::{DebugInfo, OutFileName, OutputFilenames, OutputType};
+ 
+ use crate::BackendConfig;
+-use crate::concurrency_limiter::{ConcurrencyLimiter, ConcurrencyLimiterToken};
++//use crate::concurrency_limiter::{ConcurrencyLimiter, ConcurrencyLimiterToken};
+ use crate::debuginfo::TypeDebugContext;
+ use crate::global_asm::GlobalAsmConfig;
+ use crate::prelude::*;
+@@ -55,7 +55,7 @@ pub(crate) struct OngoingCodegen {
+     metadata_module: Option<CompiledModule>,
+     metadata: EncodedMetadata,
+     crate_info: CrateInfo,
+-    concurrency_limiter: ConcurrencyLimiter,
++    //concurrency_limiter: ConcurrencyLimiter,
+ }
+ 
+ impl OngoingCodegen {
+@@ -116,7 +116,7 @@ impl OngoingCodegen {
+             }
+         }
+ 
+-        self.concurrency_limiter.finished();
++        //self.concurrency_limiter.finished();
+ 
+         sess.dcx().abort_if_errors();
+ 
+@@ -488,11 +488,11 @@ fn reuse_workproduct_for_cgu(
+ 
+ fn module_codegen(
+     tcx: TyCtxt<'_>,
+-    (backend_config, global_asm_config, cgu_name, token): (
++    (backend_config, global_asm_config, cgu_name /*, token*/): (
+         BackendConfig,
+         Arc<GlobalAsmConfig>,
+         rustc_span::Symbol,
+-        ConcurrencyLimiterToken,
++        //ConcurrencyLimiterToken,
+     ),
+ ) -> OngoingModuleCodegen {
+     let (cgu_name, mut cx, mut module, codegened_functions) =
+@@ -549,7 +549,7 @@ fn module_codegen(
+ 
+     let producer = crate::debuginfo::producer(tcx.sess);
+ 
+-    OngoingModuleCodegen::Async(std::thread::spawn(move || {
++    OngoingModuleCodegen::Sync((|| {
+         cx.profiler.clone().generic_activity_with_arg("compile functions", &*cgu_name).run(|| {
+             cranelift_codegen::timing::set_thread_profiler(Box::new(super::MeasuremeProfiler(
+                 cx.profiler.clone(),
+@@ -578,9 +578,9 @@ fn module_codegen(
+                     &producer,
+                 )
+             });
+-        std::mem::drop(token);
++        //std::mem::drop(token);
+         codegen_result
+-    }))
++    })())
+ }
+ 
+ pub(crate) fn run_aot(
+@@ -607,7 +607,7 @@ pub(crate) fn run_aot(
+             metadata_module: None,
+             metadata,
+             crate_info: CrateInfo::new(tcx, target_cpu),
+-            concurrency_limiter: ConcurrencyLimiter::new(tcx.sess, 0),
++            //concurrency_limiter: ConcurrencyLimiter::new(tcx.sess, 0),
+         });
+     };
+ 
+@@ -638,7 +638,7 @@ pub(crate) fn run_aot(
+             CguReuse::PreLto | CguReuse::PostLto => false,
+         });
+ 
+-    let concurrency_limiter = IntoDynSyncSend(ConcurrencyLimiter::new(tcx.sess, todo_cgus.len()));
++    //let concurrency_limiter = IntoDynSyncSend(ConcurrencyLimiter::new(tcx.sess, todo_cgus.len()));
+ 
+     let modules = tcx.sess.time("codegen mono items", || {
+         let mut modules: Vec<_> = par_map(todo_cgus, |(_, cgu)| {
+@@ -651,7 +651,7 @@ pub(crate) fn run_aot(
+                         backend_config.clone(),
+                         global_asm_config.clone(),
+                         cgu.name(),
+-                        concurrency_limiter.acquire(tcx.dcx()),
++                        //concurrency_limiter.acquire(tcx.dcx()),
+                     ),
+                     module_codegen,
+                     Some(rustc_middle::dep_graph::hash_result),
+@@ -729,6 +729,6 @@ pub(crate) fn run_aot(
+         metadata_module,
+         metadata,
+         crate_info: CrateInfo::new(tcx, target_cpu),
+-        concurrency_limiter: concurrency_limiter.0,
++        //concurrency_limiter: concurrency_limiter.0,
+     })
+ }
+diff --git a/compiler/rustc_codegen_cranelift/src/lib.rs b/compiler/rustc_codegen_cranelift/src/lib.rs
+index e6f6ae30581..87cb2c13c97 100644
+--- a/compiler/rustc_codegen_cranelift/src/lib.rs
++++ b/compiler/rustc_codegen_cranelift/src/lib.rs
+@@ -30,8 +30,8 @@ extern crate rustc_span;
+ extern crate rustc_target;
+ 
+ // This prevents duplicating functions and statics that are already part of the host rustc process.
+-#[allow(unused_extern_crates)]
+-extern crate rustc_driver;
++//#[allow(unused_extern_crates)]
++//extern crate rustc_driver;
+ 
+ use std::any::Any;
+ use std::cell::{Cell, RefCell};
+@@ -350,7 +350,7 @@ fn build_isa(sess: &Session, backend_config: &BackendConfig) -> Arc<dyn TargetIs
+ }
+ 
+ /// This is the entrypoint for a hot plugged rustc_codegen_cranelift
+-#[no_mangle]
++//#[no_mangle]
+ pub fn __rustc_codegen_backend() -> Box<dyn CodegenBackend> {
+     Box::new(CraneliftCodegenBackend { config: RefCell::new(None) })
+ }
+diff --git a/compiler/rustc_codegen_ssa/src/back/link.rs b/compiler/rustc_codegen_ssa/src/back/link.rs
+index 651485a1876..cb5d07cbb97 100644
+--- a/compiler/rustc_codegen_ssa/src/back/link.rs
++++ b/compiler/rustc_codegen_ssa/src/back/link.rs
+@@ -95,10 +95,17 @@ pub fn link_binary(
+         });
+ 
+         if outputs.outputs.should_link() {
+-            let tmpdir = TempFileBuilder::new()
+-                .prefix("rustc")
+-                .tempdir()
+-                .unwrap_or_else(|error| sess.dcx().emit_fatal(errors::CreateTempDir { error }));
++            let tmpdir = if cfg!(target_family = "wasm") {
++                TempFileBuilder::new()
++                    .prefix("rustc")
++                    .tempdir_in(std::env::current_dir().unwrap())
++                    .unwrap_or_else(|error| sess.dcx().emit_fatal(errors::CreateTempDir { error }))
++            } else {
++                TempFileBuilder::new()
++                    .prefix("rustc")
++                    .tempdir()
++                    .unwrap_or_else(|error| sess.dcx().emit_fatal(errors::CreateTempDir { error }))
++            };
+             let path = MaybeTempDir::new(tmpdir, sess.opts.cg.save_temps);
+             let output = out_filename(
+                 sess,
+diff --git a/compiler/rustc_codegen_ssa/src/back/linker.rs b/compiler/rustc_codegen_ssa/src/back/linker.rs
+index 6ee599c9964..52a64baa1a3 100644
+--- a/compiler/rustc_codegen_ssa/src/back/linker.rs
++++ b/compiler/rustc_codegen_ssa/src/back/linker.rs
+@@ -128,7 +128,9 @@ pub(crate) fn get_linker<'a>(
+             new_path.extend(env::split_paths(&path));
+         }
+     }
+-    cmd.env("PATH", env::join_paths(new_path).unwrap());
++    if cfg!(not(target_family = "wasm")) {
++        cmd.env("PATH", env::join_paths(new_path).unwrap());
++    }
+ 
+     // FIXME: Move `/LIBPATH` addition for uwp targets from the linker construction
+     // to the linker args construction.
+diff --git a/compiler/rustc_driver/Cargo.toml b/compiler/rustc_driver/Cargo.toml
+index ae9712ad66d..cc9b6643c0f 100644
+--- a/compiler/rustc_driver/Cargo.toml
++++ b/compiler/rustc_driver/Cargo.toml
+@@ -4,7 +4,7 @@ version = "0.0.0"
+ edition = "2021"
+ 
+ [lib]
+-crate-type = ["dylib"]
++crate-type = ["lib", "dylib"]
+ 
+ [dependencies]
+ # tidy-alphabetical-start
+diff --git a/compiler/rustc_driver_impl/Cargo.toml b/compiler/rustc_driver_impl/Cargo.toml
+index 81f15ebcbf8..2db98ee7bd5 100644
+--- a/compiler/rustc_driver_impl/Cargo.toml
++++ b/compiler/rustc_driver_impl/Cargo.toml
+@@ -71,6 +71,7 @@ ctrlc = "3.4.4"
+ 
+ [features]
+ # tidy-alphabetical-start
++cranelift  = ['rustc_interface/cranelift']
+ llvm = ['rustc_interface/llvm']
+ max_level_info = ['rustc_log/max_level_info']
+ rustc_randomized_layouts = [
+diff --git a/compiler/rustc_driver_impl/src/lib.rs b/compiler/rustc_driver_impl/src/lib.rs
+index 256266d2965..3f701887f62 100644
+--- a/compiler/rustc_driver_impl/src/lib.rs
++++ b/compiler/rustc_driver_impl/src/lib.rs
+@@ -1374,7 +1374,7 @@ fn ice_path_with_config(config: Option<&UnstableOptions>) -> &'static Option<Pat
+                 &format_description!("[year]-[month]-[day]T[hour]_[minute]_[second]"),
+             )
+             .unwrap_or_default();
+-        let pid = std::process::id();
++        let pid = if cfg!(target_family = "wasm") { 1 } else { std::process::id() };
+         path.push(format!("rustc-ice-{file_now}-{pid}.txt"));
+         Some(path)
+     })
+diff --git a/compiler/rustc_interface/Cargo.toml b/compiler/rustc_interface/Cargo.toml
+index 7a2ba07ce87..627b6aaf765 100644
+--- a/compiler/rustc_interface/Cargo.toml
++++ b/compiler/rustc_interface/Cargo.toml
+@@ -14,6 +14,7 @@ rustc_ast_pretty = { path = "../rustc_ast_pretty" }
+ rustc_attr = { path = "../rustc_attr" }
+ rustc_borrowck = { path = "../rustc_borrowck" }
+ rustc_builtin_macros = { path = "../rustc_builtin_macros" }
++rustc_codegen_cranelift = { path = "../rustc_codegen_cranelift", optional = true }
+ rustc_codegen_llvm = { path = "../rustc_codegen_llvm", optional = true }
+ rustc_codegen_ssa = { path = "../rustc_codegen_ssa" }
+ rustc_const_eval = { path = "../rustc_const_eval" }
+@@ -53,5 +54,6 @@ tracing = "0.1"
+ 
+ [features]
+ # tidy-alphabetical-start
++cranelift = ['rustc_codegen_cranelift']
+ llvm = ['dep:rustc_codegen_llvm']
+ # tidy-alphabetical-end
+diff --git a/compiler/rustc_interface/src/util.rs b/compiler/rustc_interface/src/util.rs
+index d3213b1263c..931da5c89b9 100644
+--- a/compiler/rustc_interface/src/util.rs
++++ b/compiler/rustc_interface/src/util.rs
+@@ -49,7 +49,7 @@ pub fn add_configuration(cfg: &mut Cfg, sess: &mut Session, codegen_backend: &dy
+ }
+ 
+ pub static STACK_SIZE: OnceLock<usize> = OnceLock::new();
+-pub const DEFAULT_STACK_SIZE: usize = 8 * 1024 * 1024;
++pub const DEFAULT_STACK_SIZE: usize = 32 * 1024 * 1024;
+ 
+ fn init_stack_size(early_dcx: &EarlyDiagCtxt) -> usize {
+     // Obey the environment setting or default
+@@ -82,7 +82,7 @@ fn init_stack_size(early_dcx: &EarlyDiagCtxt) -> usize {
+ }
+ 
+ fn run_in_thread_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
+-    thread_stack_size: usize,
++    _thread_stack_size: usize,
+     edition: Edition,
+     sm_inputs: SourceMapInputs,
+     f: F,
+@@ -93,7 +93,7 @@ fn run_in_thread_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
+     // the parallel compiler, in particular to ensure there is no accidental
+     // sharing of data between the main thread and the compilation thread
+     // (which might cause problems for the parallel compiler).
+-    let builder = thread::Builder::new().name("rustc".to_string()).stack_size(thread_stack_size);
++    /*let builder = thread::Builder::new().name("rustc".to_string()).stack_size(thread_stack_size);
+ 
+     // We build the session globals and run `f` on the spawned thread, because
+     // `SessionGlobals` does not impl `Send` in the non-parallel compiler.
+@@ -101,11 +101,11 @@ fn run_in_thread_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
+         // `unwrap` is ok here because `spawn_scoped` only panics if the thread
+         // name contains null bytes.
+         let r = builder
+-            .spawn_scoped(s, move || {
++            .spawn_scoped(s, move || {*/
+                 rustc_span::create_session_globals_then(edition, Some(sm_inputs), || {
+                     f(CurrentGcx::new())
+                 })
+-            })
++            /*})
+             .unwrap()
+             .join();
+ 
+@@ -113,7 +113,7 @@ fn run_in_thread_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
+             Ok(v) => v,
+             Err(e) => std::panic::resume_unwind(e),
+         }
+-    })
++    })*/
+ }
+ 
+ pub(crate) fn run_in_thread_pool_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
+@@ -247,6 +247,8 @@ pub fn get_codegen_backend(
+             }
+             #[cfg(feature = "llvm")]
+             "llvm" => rustc_codegen_llvm::LlvmCodegenBackend::new,
++            #[cfg(feature = "cranelift")]
++            "cranelift" => rustc_codegen_cranelift::__rustc_codegen_backend,
+             backend_name => get_codegen_sysroot(early_dcx, sysroot, backend_name),
+         }
+     });
+diff --git a/compiler/rustc_metadata/src/creader.rs b/compiler/rustc_metadata/src/creader.rs
+index a18c6baec00..be85eeeb2d4 100644
+--- a/compiler/rustc_metadata/src/creader.rs
++++ b/compiler/rustc_metadata/src/creader.rs
+@@ -1,5 +1,6 @@
+ //! Validates all used crates and extern libraries and loads their metadata
+ 
++#[cfg(any(unix, windows))]
+ use std::error::Error;
+ use std::ops::Fn;
+ use std::path::Path;
+@@ -16,6 +17,7 @@ use rustc_data_structures::svh::Svh;
+ use rustc_data_structures::sync::{self, FreezeReadGuard, FreezeWriteGuard};
+ use rustc_errors::DiagCtxtHandle;
+ use rustc_expand::base::SyntaxExtension;
++#[cfg(any(unix, windows))]
+ use rustc_fs_util::try_canonicalize;
+ use rustc_hir::def_id::{CrateNum, LOCAL_CRATE, LocalDefId, StableCrateId};
+ use rustc_hir::definitions::Definitions;
+@@ -1155,10 +1157,12 @@ fn alloc_error_handler_spans(krate: &ast::Crate) -> Vec<Span> {
+     f.spans
+ }
+ 
++#[cfg(any(unix, windows))]
+ fn format_dlopen_err(e: &(dyn std::error::Error + 'static)) -> String {
+     e.sources().map(|e| format!(": {e}")).collect()
+ }
+ 
++#[cfg(any(unix, windows))]
+ fn attempt_load_dylib(path: &Path) -> Result<libloading::Library, libloading::Error> {
+     #[cfg(target_os = "aix")]
+     if let Some(ext) = path.extension()
+@@ -1186,6 +1190,7 @@ fn attempt_load_dylib(path: &Path) -> Result<libloading::Library, libloading::Er
+ // proc-macro DLL with `Error::LoadLibraryExW`. It is suspected that something in the
+ // system still holds a lock on the file, so we retry a few times before calling it
+ // an error.
++#[cfg(any(unix, windows))]
+ fn load_dylib(path: &Path, max_attempts: usize) -> Result<libloading::Library, String> {
+     assert!(max_attempts > 0);
+ 
+@@ -1249,6 +1254,7 @@ impl From<DylibError> for CrateError {
+     }
+ }
+ 
++#[cfg(any(unix, windows))]
+ pub unsafe fn load_symbol_from_dylib<T: Copy>(
+     path: &Path,
+     sym_name: &str,
+@@ -1268,3 +1274,14 @@ pub unsafe fn load_symbol_from_dylib<T: Copy>(
+ 
+     Ok(*sym)
+ }
++
++#[cfg(not(any(unix, windows)))]
++pub unsafe fn load_symbol_from_dylib<T: Copy>(
++    path: &Path,
++    _sym_name: &str,
++) -> Result<T, DylibError> {
++    Err(DylibError::DlOpen(
++        path.display().to_string(),
++        "dlopen not supported on this platform".to_owned(),
++    ))
++}
+diff --git a/compiler/rustc_session/src/filesearch.rs b/compiler/rustc_session/src/filesearch.rs
+index 4be013fd6fd..cf726b3ce41 100644
+--- a/compiler/rustc_session/src/filesearch.rs
++++ b/compiler/rustc_session/src/filesearch.rs
+@@ -158,7 +158,15 @@ fn current_dll_path() -> Result<PathBuf, String> {
+     Ok(OsString::from_wide(&filename).into())
+ }
+ 
++#[cfg(not(any(unix, windows)))]
++fn current_dll_path() -> Result<PathBuf, String> {
++    Err(format!("current_dll_path not supported"))
++}
++
+ pub fn sysroot_candidates() -> SmallVec<[PathBuf; 2]> {
++    #[cfg(not(any(unix, windows)))]
++    return smallvec![];
++
+     let target = crate::config::host_tuple();
+     let mut sysroot_candidates: SmallVec<[PathBuf; 2]> =
+         smallvec![get_or_default_sysroot().expect("Failed finding sysroot")];
+diff --git a/compiler/rustc_target/src/spec/targets/wasm32_wasip1.rs b/compiler/rustc_target/src/spec/targets/wasm32_wasip1.rs
+index 1cd30f21bec..7ea493a30ad 100644
+--- a/compiler/rustc_target/src/spec/targets/wasm32_wasip1.rs
++++ b/compiler/rustc_target/src/spec/targets/wasm32_wasip1.rs
+@@ -23,7 +23,7 @@ pub(crate) fn target() -> Target {
+     options.post_link_objects_self_contained = crt_objects::post_wasi_self_contained();
+ 
+     // FIXME: Figure out cases in which WASM needs to link with a native toolchain.
+-    options.link_self_contained = LinkSelfContainedDefault::True;
++    options.link_self_contained = LinkSelfContainedDefault::False;
+ 
+     // Right now this is a bit of a workaround but we're currently saying that
+     // the target by default has a static crt which we're taking as a signal
+diff --git a/compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs b/compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs
+index 19bc5db4d9b..d02544d0503 100644
+--- a/compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs
++++ b/compiler/rustc_target/src/spec/targets/wasm32_wasip1_threads.rs
+@@ -19,19 +19,21 @@ pub(crate) fn target() -> Target {
+         "--import-memory",
+         "--export-memory",
+         "--shared-memory",
++        "-Wl,--max-memory=1073741824",
+     ]);
+     options.add_pre_link_args(LinkerFlavor::WasmLld(Cc::Yes), &[
+         "--target=wasm32-wasip1-threads",
+         "-Wl,--import-memory",
+         "-Wl,--export-memory,",
+         "-Wl,--shared-memory",
++        "-Wl,--max-memory=1073741824",
+     ]);
+ 
+     options.pre_link_objects_self_contained = crt_objects::pre_wasi_self_contained();
+     options.post_link_objects_self_contained = crt_objects::post_wasi_self_contained();
+ 
+     // FIXME: Figure out cases in which WASM needs to link with a native toolchain.
+-    options.link_self_contained = LinkSelfContainedDefault::True;
++    options.link_self_contained = LinkSelfContainedDefault::False;
+ 
+     // Right now this is a bit of a workaround but we're currently saying that
+     // the target by default has a static crt which we're taking as a signal
+diff --git a/config.toml b/config.toml
+new file mode 100644
+index 00000000000..f6fe11712c6
+--- /dev/null
++++ b/config.toml
+@@ -0,0 +1,37 @@
++# Includes one of the default files in src/bootstrap/defaults
++profile = "compiler"
++change-id = 9999999
++
++[llvm]
++download-ci-llvm = true
++
++[rust]
++codegen-backends = ["llvm"]
++deny-warnings = false
++llvm-bitcode-linker = false
++debug = false
++debuginfo-level = 0
++
++[build]
++docs = false
++extended = false
++tools = []
++host = ["wasm32-wasip1"]
++target = ["x86_64-unknown-linux-gnu"]
++
++[install]
++prefix = "dist"
++sysconfdir = "etc"
++
++[target.'wasm32-wasip1']
++wasi-root = "wasi-sdk-24.0-x86_64-linux/share/wasi-sysroot"
++linker = "wasi-sdk-24.0-x86_64-linux/bin/clang"
++codegen-backends = ["cranelift"]
++
++[target.'wasm32-wasip1-threads']
++wasi-root = "wasi-sdk-24.0-x86_64-linux/share/wasi-sysroot"
++linker = "wasi-sdk-24.0-x86_64-linux/bin/clang"
++codegen-backends = ["cranelift"]
++
++[target.'x86_64-unknown-linux-gnu']
++cc = "gcc"
+diff --git a/src/bootstrap/src/core/build_steps/compile.rs b/src/bootstrap/src/core/build_steps/compile.rs
+index 8e088682f92..74896463535 100644
+--- a/src/bootstrap/src/core/build_steps/compile.rs
++++ b/src/bootstrap/src/core/build_steps/compile.rs
+@@ -1398,7 +1398,7 @@ impl Step for CodegenBackend {
+         }
+ 
+         for backend in run.builder.config.codegen_backends(run.target) {
+-            if backend == "llvm" {
++            if backend == "llvm" || backend == "cranelift" {
+                 continue; // Already built as part of rustc
+             }
+ 
+@@ -1505,7 +1505,7 @@ fn copy_codegen_backends_to_sysroot(
+     }
+ 
+     for backend in builder.config.codegen_backends(target) {
+-        if backend == "llvm" {
++        if backend == "llvm" || backend == "cranelift" {
+             continue; // Already built as part of rustc
+         }
+ 
+@@ -1881,7 +1881,7 @@ impl Step for Assemble {
+         build_compiler.stage = actual_stage;
+ 
+         for backend in builder.config.codegen_backends(target_compiler.host) {
+-            if backend == "llvm" {
++            if backend == "llvm" || backend == "cranelift" {
+                 continue; // Already built as part of rustc
+             }
+ 
+diff --git a/src/bootstrap/src/lib.rs b/src/bootstrap/src/lib.rs
+index c384fd6bf43..61a0cde9b01 100644
+--- a/src/bootstrap/src/lib.rs
++++ b/src/bootstrap/src/lib.rs
+@@ -691,6 +691,11 @@ impl Build {
+         if (self.config.llvm_enabled(target) || kind == Kind::Check) && check("llvm") {
+             features.push("llvm");
+         }
++        if self.config.codegen_backends(target).contains(&"cranelift".to_owned())
++            || kind == Kind::Check
++        {
++            features.push("cranelift");
++        }
+         // keep in sync with `bootstrap/compile.rs:rustc_cargo_env`
+         if self.config.rust_randomize_layout {
+             features.push("rustc_randomized_layouts");

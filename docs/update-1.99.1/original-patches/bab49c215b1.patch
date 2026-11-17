@@ -1,0 +1,113 @@
+bab49c215b1e4e021420afe18ab9790a5f0b43b0
+Link against lld for linking compiled object files
+
+
+diff --git a/compiler/rustc_codegen_ssa/src/back/link.rs b/compiler/rustc_codegen_ssa/src/back/link.rs
+index cb5d07cbb97..59bd36744b0 100644
+--- a/compiler/rustc_codegen_ssa/src/back/link.rs
++++ b/compiler/rustc_codegen_ssa/src/back/link.rs
+@@ -827,6 +827,29 @@ fn link_natively(
+ 
+     // Invoke the system linker
+     info!("{cmd:?}");
++
++    #[cfg(target_os = "wasi")]
++    if matches!(flavor, LinkerFlavor::Gnu(Cc::No, Lld::Yes) | LinkerFlavor::WasmLld(Cc::No)) {
++        extern "C" {
++            fn RustRunLld(
++                argc: std::ffi::c_int,
++                argv: *const *const std::ffi::c_char,
++            ) -> std::ffi::c_int;
++        }
++
++        let cmd = cmd.command();
++        println!("Linking using {cmd:?}");
++        let mut args = cmd
++            .get_args()
++            .map(|arg| std::ffi::CString::new(arg.as_encoded_bytes()).unwrap())
++            .collect::<Vec<_>>();
++        args.insert(0, std::ffi::CString::new(cmd.get_program().as_encoded_bytes()).unwrap());
++        let argv = args.iter().map(|arg| arg.as_ptr()).collect::<Vec<_>>();
++
++        let ret = unsafe { RustRunLld(args.len() as std::ffi::c_int, argv.as_ptr()) };
++        std::process::exit(ret);
++    }
++
+     let retry_on_segfault = env::var("RUSTC_RETRY_LINKER_ON_SEGFAULT").is_ok();
+     let unknown_arg_regex =
+         Regex::new(r"(unknown|unrecognized) (command line )?(option|argument)").unwrap();
+diff --git a/compiler/rustc_llvm/build.rs b/compiler/rustc_llvm/build.rs
+index abc8f8bf974..a2829032fd5 100644
+--- a/compiler/rustc_llvm/build.rs
++++ b/compiler/rustc_llvm/build.rs
+@@ -221,6 +221,7 @@ fn main() {
+         .file("llvm-wrapper/CoverageMappingWrapper.cpp")
+         .file("llvm-wrapper/SymbolWrapper.cpp")
+         .file("llvm-wrapper/Linker.cpp")
++        .file("llvm-wrapper/LLD.cpp")
+         .cpp(true)
+         .cpp_link_stdlib(None) // we handle this below
+         .compile("llvm-wrapper");
+@@ -328,6 +329,11 @@ fn main() {
+         println!("cargo:rustc-link-lib={kind}={name}");
+     }
+ 
++    println!("cargo:rustc-link-lib=static=LLVMOption");
++    println!("cargo:rustc-link-lib=static=lldCommon");
++    println!("cargo:rustc-link-lib=static=lldELF");
++    println!("cargo:rustc-link-lib=static=lldWasm");
++
+     // LLVM ldflags
+     //
+     // If we're a cross-compile of LLVM then unfortunately we can't trust these
+diff --git a/compiler/rustc_llvm/llvm-wrapper/LLD.cpp b/compiler/rustc_llvm/llvm-wrapper/LLD.cpp
+new file mode 100644
+index 00000000000..182ea9534b3
+--- /dev/null
++++ b/compiler/rustc_llvm/llvm-wrapper/LLD.cpp
+@@ -0,0 +1,11 @@
++#include "lld/Common/Driver.h"
++
++LLD_HAS_DRIVER(elf)
++LLD_HAS_DRIVER(wasm)
++
++extern "C" int RustRunLld(int argc, char **argv) {
++    llvm::ArrayRef<const char *> args(argv, argv + argc);
++    auto r = lld::lldMain(args, llvm::outs(), llvm::errs(),
++                         {{lld::Gnu, &lld::elf::link}, {lld::Wasm, &lld::wasm::link}});
++    return r.retCode;
++}
+diff --git a/config.llvm.toml b/config.llvm.toml
+index 1a64513e1ed..ababcbb76a0 100644
+--- a/config.llvm.toml
++++ b/config.llvm.toml
+@@ -24,7 +24,7 @@ docs = false
+ extended = false
+ tools = []
+ host = ["wasm32-wasip1-threads"]
+-target = ["x86_64-unknown-linux-gnu", "wasm32-wasip1-threads"]
++target = ["x86_64-unknown-linux-gnu", "wasm32-wasip1"]
+ cargo-native-static = true
+ 
+ [install]
+diff --git a/src/bootstrap/src/core/build_steps/llvm.rs b/src/bootstrap/src/core/build_steps/llvm.rs
+index ef064341df0..53ddb1c7270 100644
+--- a/src/bootstrap/src/core/build_steps/llvm.rs
++++ b/src/bootstrap/src/core/build_steps/llvm.rs
+@@ -545,6 +545,8 @@ impl Step for Llvm {
+             return res;
+         }
+ 
++        cfg.define("LLVM_ENABLE_PROJECTS", "lld");
++
+         if target.contains("wasi") {
+             let wasi_sysroot = env::var("WASI_SYSROOT").expect("WASI_SYSROOT not set");
+             let wasi_sdk_path = std::path::Path::new(&wasi_sysroot)
+@@ -699,7 +701,6 @@ impl Step for Llvm {
+                 .define("LLVM_TOOL_XCODE_TOOLCHAIN_BUILD", "OFF")
+                 .define("LLVM_TOOL_YAML2OBJ_BUILD", "OFF")
+                 // .define("LLVM_ENABLE_PROJECTS", "clang;lld")
+-                .define("LLVM_ENABLE_PROJECTS", "")
+                 // .define("CLANG_ENABLE_ARCMT", "OFF")
+                 // .define("CLANG_ENABLE_STATIC_ANALYZER", "OFF")
+                 // .define("CLANG_INCLUDE_TESTS", "OFF")

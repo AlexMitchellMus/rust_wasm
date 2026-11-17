@@ -1,0 +1,17 @@
+132c6388ad75299e7ea581cde8eecbfc8f31a9dd
+Update comment.txt
+
+
+diff --git a/comment.txt b/comment.txt
+index fbd796f866c..231b003b3d2 100644
+--- a/comment.txt
++++ b/comment.txt
+@@ -19,7 +19,7 @@ Hello World!
+ 
+ use LLVM
+ Install example:
+-WASI_SDK_PATH=`pwd`/wasi-sdk-24.0-x86_64-linux WASI_SYSROOT=`pwd`/wasi-sdk-24.0-x86_64-linux/share/wasi-sysroot ./x.py install
++WASI_SDK_PATH=`pwd`/wasi-sdk-24.0-x86_64-linux WASI_SYSROOT=`pwd`/wasi-sdk-24.0-x86_64-linux/share/wasi-sysroot ./x.py install --config config.llvm.toml
+ 
+ If you just want to run it, https://github.com/oligamiq/rust_wasm/tree/main/rustc_llvm
+ ```
