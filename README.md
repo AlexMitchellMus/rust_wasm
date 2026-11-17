@@ -5,8 +5,10 @@ A repository for Rust compiler binaries compiled to WebAssembly.
 This project builds and distributes the Rust compiler and LLVM tools compiled to WebAssembly.
 
 ## Upstream Sources
-- **rustc_llvm**: [oligamiq/rust](https://github.com/oligamiq/rust)
-- **rustc_cranelift**: [bjorn3/rust](https://github.com/bjorn3/rust)
+- **rustc_llvm**: [rust-lang/rust](https://github.com/rust-lang/rust) `1.99.1` plus the
+  compiler patches in [`patches/rust-1.99.1/`](patches/rust-1.99.1/). There is no
+  separate `rust` fork: CI checks out the upstream tag, applies the patch series
+  with `git am`, then initializes submodules.
 - **clang, wasm-ld, etc**: [YoWASP/clang](https://github.com/YoWASP/clang)
 
 ## Dependencies

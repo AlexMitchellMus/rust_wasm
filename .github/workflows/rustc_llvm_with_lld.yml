@@ -15,6 +15,12 @@ on:
           - dist-linux
           - dist-macos
           - dist-windows
+  # Every push to update-1.99.1 starts the install CI (install-abort +
+  # install-unwind, then merge-bins). Keep pushes to that branch intentional;
+  # dist-* and release jobs stay manual.
+  push:
+    branches:
+      - update-1.99.1
 
 permissions:
   packages: write
@@ -27,21 +33,31 @@ jobs:
   # ============================================================
   install-abort:
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.job == 'install' || github.event.inputs.job == '' }}
+    if: ${{ (inputs.job || 'install') == 'install' }}
     steps:
       - name: copy source
         uses: actions/checkout@v4
         with:
-          # repository: 'bjorn3/rust'
-          repository: 'AlexMitchellMus/rust' # phase B: fork does not exist yet
-          submodules: 'true'
-          ref: 'compile_rustc_for_wasm-1.99.1'
+          # Built from the upstream tag; the rust_wasm patch series is applied
+          # in the next step, before submodules are initialized.
+          repository: 'rust-lang/rust'
+          ref: '1.99.1'
+          fetch-depth: 1
+          submodules: false
           path: 'rust'
 
       - uses: actions/checkout@v4
         with:
+          # Check out the revision that triggered this run, so pushed
+          # recipe fixes (including the patch series) are used.
           path: 'rust_wasm'
-          ref: 'gh-actions'
+
+      - name: apply rustc.wasm compiler patches
+        shell: bash
+        run: |
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/apply-rust-patches.sh" \
+            "${GITHUB_WORKSPACE}/rust" \
+            "${GITHUB_WORKSPACE}/rust_wasm/patches/rust-1.99.1"
 
       - name: install-wasi-sdk
         working-directory: '${{ github.workspace }}/rust'
@@ -83,7 +99,8 @@ jobs:
           RUST_CONFIGURE_ARGS: "-W warnings"
           RUSTFLAGS: "-W warnings"
         run: |
-          cargo install --git https://github.com/oligamiq/toolchain-for-building-rustc
+          # Pin main tip a65ee6d; the old gh-actions branch no longer exists.
+          cargo install --git https://github.com/oligamiq/toolchain-for-building-rustc --rev a65ee6dcc85de6e5bc4591a75901da17b345c847
           toolchain-for-building-rustc --tier all --os linux --os windows --os mac -f config.llvm.toml --only-llvm
           
           # Convert workspace path to forward slashes for TOML compatibility
@@ -146,20 +163,31 @@ jobs:
   # ============================================================
   install-unwind:
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.job == 'install' || github.event.inputs.job == '' }}
+    if: ${{ (inputs.job || 'install') == 'install' }}
     steps:
       - name: copy source
         uses: actions/checkout@v4
         with:
-          repository: 'AlexMitchellMus/rust' # phase B: fork does not exist yet
-          submodules: 'true'
-          ref: 'compile_rustc_for_wasm-1.99.1'
+          # Built from the upstream tag; the rust_wasm patch series is applied
+          # in the next step, before submodules are initialized.
+          repository: 'rust-lang/rust'
+          ref: '1.99.1'
+          fetch-depth: 1
+          submodules: false
           path: 'rust'
 
       - uses: actions/checkout@v4
         with:
+          # Check out the revision that triggered this run, so pushed
+          # recipe fixes (including the patch series) are used.
           path: 'rust_wasm'
-          ref: 'gh-actions'
+
+      - name: apply rustc.wasm compiler patches
+        shell: bash
+        run: |
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/apply-rust-patches.sh" \
+            "${GITHUB_WORKSPACE}/rust" \
+            "${GITHUB_WORKSPACE}/rust_wasm/patches/rust-1.99.1"
 
       - name: install-wasi-sdk
         working-directory: '${{ github.workspace }}/rust'
@@ -201,7 +229,8 @@ jobs:
           RUST_CONFIGURE_ARGS: "-W warnings"
           RUSTFLAGS: "-W warnings"
         run: |
-          cargo install --git https://github.com/oligamiq/toolchain-for-building-rustc
+          # Pin main tip a65ee6d; the old gh-actions branch no longer exists.
+          cargo install --git https://github.com/oligamiq/toolchain-for-building-rustc --rev a65ee6dcc85de6e5bc4591a75901da17b345c847
           toolchain-for-building-rustc --tier all --os linux --os windows --os mac -f config.llvm.toml --only-llvm
           
           # Convert workspace path to forward slashes for TOML compatibility
@@ -253,12 +282,13 @@ jobs:
   merge-bins:
     runs-on: ubuntu-latest
     needs: [install-abort, install-unwind]
-    if: ${{ github.event.inputs.job == 'install' || github.event.inputs.job == '' }}
+    if: ${{ (inputs.job || 'install') == 'install' }}
     steps:
       - uses: actions/checkout@v4
         with:
+          # Check out the revision that triggered this run, so pushed
+          # recipe fixes (including the patch series) are used.
           path: 'rust_wasm'
-          ref: 'gh-actions'
 
       - name: install rust
         uses: actions-rust-lang/setup-rust-toolchain@v1
@@ -358,24 +388,33 @@ jobs:
     #     WebAssembly: [true, false]
 
     runs-on: ubuntu-latest
-    if: ${{ github.event.inputs.job == 'dist-linux' || github.event.inputs.job == '' }}
+    if: ${{ (inputs.job || 'install') == 'dist-linux' }}
     env:
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
       - name: copy source
         uses: actions/checkout@v4
         with:
-          # repository: 'bjorn3/rust'
-          repository: 'AlexMitchellMus/rust' # phase B: fork does not exist yet
-          submodules: 'true'
-          ref: 'compile_rustc_for_wasm-1.99.1'
+          # Built from the upstream tag; the rust_wasm patch series is applied
+          # in the next step, before submodules are initialized.
+          repository: 'rust-lang/rust'
+          ref: '1.99.1'
+          fetch-depth: 1
+          submodules: false
           path: 'rust'
 
       - uses: actions/checkout@v4
         with:
+          # Check out the revision that triggered this run, so pushed
+          # recipe fixes (including the patch series) are used.
           path: 'rust_wasm'
-          ref: 'main'
 
+      - name: apply rustc.wasm compiler patches
+        shell: bash
+        run: |
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/apply-rust-patches.sh" \
+            "${GITHUB_WORKSPACE}/rust" \
+            "${GITHUB_WORKSPACE}/rust_wasm/patches/rust-1.99.1"
 
       - name: rustbuild setup
         run: |
@@ -549,7 +588,8 @@ jobs:
           RUST_CONFIGURE_ARGS: "-W warnings"
           RUSTFLAGS: "-W warnings"
         run: |
-          cargo install --git https://github.com/oligamiq/toolchain-for-building-rustc
+          # Pin main tip a65ee6d; the old gh-actions branch no longer exists.
+          cargo install --git https://github.com/oligamiq/toolchain-for-building-rustc --rev a65ee6dcc85de6e5bc4591a75901da17b345c847
           toolchain-for-building-rustc --tier 1 --tier 2-host --os linux -t sparcv9-sun-solaris --install --no-cache -f config.llvm.toml -t arm-unknown-linux-musleabi -t arm-unknown-linux-musleabihf -t i586-unknown-linux-gnu -t i686-unknown-linux-musl -t wasm32-wasip1 -t wasm32-wasip1-threads -t wasm32-wasip2 -t x86_64-pc-windows-gnu -t wasm32-unknown-unknown -t wasm32-unknown-emscripten
           toolchain-for-building-rustc --tier all --os linux --os windows --os mac -f config.llvm.toml --only-llvm
           
@@ -612,24 +652,34 @@ jobs:
 
   dist-macos:
     runs-on: macos-latest
-    if: ${{ github.event.inputs.job == 'dist-macos' || github.event.inputs.job == '' }}
+    if: ${{ (inputs.job || 'install') == 'dist-macos' }}
     env:
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
       - name: copy source
         uses: actions/checkout@v4
         with:
-          # repository: 'bjorn3/rust'
-          repository: 'AlexMitchellMus/rust' # phase B: fork does not exist yet
-          submodules: 'true'
-          ref: 'compile_rustc_for_wasm-1.99.1'
+          # Built from the upstream tag; the rust_wasm patch series is applied
+          # in the next step, before submodules are initialized.
+          repository: 'rust-lang/rust'
+          ref: '1.99.1'
+          fetch-depth: 1
+          submodules: false
           path: 'rust'
 
       - uses: actions/checkout@v4
         with:
+          # Check out the revision that triggered this run, so pushed
+          # recipe fixes (including the patch series) are used.
           path: 'rust_wasm'
-          ref: 'gh-actions'
           fetch-depth: 0
+
+      - name: apply rustc.wasm compiler patches
+        shell: bash
+        run: |
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/apply-rust-patches.sh" \
+            "${GITHUB_WORKSPACE}/rust" \
+            "${GITHUB_WORKSPACE}/rust_wasm/patches/rust-1.99.1"
 
       - name: free space
         uses: jlumbroso/free-disk-space@main
@@ -669,7 +719,8 @@ jobs:
           RUST_CONFIGURE_ARGS: "-W warnings"
           RUSTFLAGS: "-W warnings"
         run: |
-          cargo install --git https://github.com/oligamiq/toolchain-for-building-rustc
+          # Pin main tip a65ee6d; the old gh-actions branch no longer exists.
+          cargo install --git https://github.com/oligamiq/toolchain-for-building-rustc --rev a65ee6dcc85de6e5bc4591a75901da17b345c847
           toolchain-for-building-rustc --tier 1 --tier 2-host --os mac --install --no-cache -f config.llvm.toml --overwrite -t wasm32-wasip1 -t wasm32-wasip1-threads
           toolchain-for-building-rustc --tier all --os linux --os windows --os mac -f config.llvm.toml --only-llvm
           
@@ -734,23 +785,34 @@ jobs:
 
   dist-windows:
     runs-on: windows-latest
-    if: ${{ github.event.inputs.job == 'dist-windows' || github.event.inputs.job == '' }}
+    if: ${{ (inputs.job || 'install') == 'dist-windows' }}
     env:
       CARGO_REGISTRIES_CRATES_IO_PROTOCOL: sparse
     steps:
       - name: copy source
         uses: actions/checkout@v4
         with:
-          repository: 'AlexMitchellMus/rust' # phase B: fork does not exist yet
-          submodules: 'true'
-          ref: 'compile_rustc_for_wasm-1.99.1'
+          # Built from the upstream tag; the rust_wasm patch series is applied
+          # in the next step, before submodules are initialized.
+          repository: 'rust-lang/rust'
+          ref: '1.99.1'
+          fetch-depth: 1
+          submodules: false
           path: 'rust'
 
       - uses: actions/checkout@v4
         with:
+          # Check out the revision that triggered this run, so pushed
+          # recipe fixes (including the patch series) are used.
           path: 'rust_wasm'
-          ref: 'gh-actions'
           fetch-depth: 0
+
+      - name: apply rustc.wasm compiler patches
+        shell: bash
+        run: |
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/apply-rust-patches.sh" \
+            "${GITHUB_WORKSPACE}/rust" \
+            "${GITHUB_WORKSPACE}/rust_wasm/patches/rust-1.99.1"
 
       - name: free space
         uses: jlumbroso/free-disk-space@main
@@ -786,7 +848,8 @@ jobs:
           RUST_CONFIGURE_ARGS: "-W warnings"
           RUSTFLAGS: "-W warnings"
         run: |
-          cargo install --git https://github.com/oligamiq/toolchain-for-building-rustc
+          # Pin main tip a65ee6d; the old gh-actions branch no longer exists.
+          cargo install --git https://github.com/oligamiq/toolchain-for-building-rustc --rev a65ee6dcc85de6e5bc4591a75901da17b345c847
           toolchain-for-building-rustc --tier 1 --tier 2-host --os windows --install --no-cache -f config.llvm.toml --overwrite -t wasm32-wasip1 -t wasm32-wasip1-threads --exclude x86_64-pc-windows-gnu
           toolchain-for-building-rustc --tier all --os linux --os windows --os mac -f config.llvm.toml --only-llvm
           

@@ -98,7 +98,14 @@ jobs:
                 echo "Replacing broken symlink with actual source code..."
                 rm -rf src
                 mkdir -p src/rust
-                git clone --depth 1 -b compile_rustc_for_wasm-1.99.1 https://github.com/AlexMitchellMus/rust /tmp/rust-clone
+                git clone --depth 1 -b 1.99.1 https://github.com/rust-lang/rust /tmp/rust-clone
+                # The compiler patches live in this recipe repo (there is no
+                # separate rust fork). Apply them so rust-src matches the wasm
+                # compiler being packaged.
+                ( cd /tmp/rust-clone && \
+                  GIT_COMMITTER_NAME=rust-wasm-ci \
+                  GIT_COMMITTER_EMAIL=rust-wasm-ci@users.noreply.github.com \
+                  git am "${{ github.workspace }}"/rust_wasm/patches/rust-1.99.1/*.patch )
                 cp -r /tmp/rust-clone/library src/rust/
                 cp -r /tmp/rust-clone/src src/rust/
                 cp -r /tmp/rust-clone/compiler src/rust/
