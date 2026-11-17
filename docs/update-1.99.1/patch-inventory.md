@@ -14,7 +14,8 @@ Local analysis only. No pushes, no repo creation, no CI. Work area:
   `rustc_minimal.yml` checked out the wasm17 branch and then hard-checked out
   `cf327c2`, silently overriding it.
 - Rebase branch: **`compile_rustc_for_wasm-1.99.1`**, based on tag `1.99.1`
-  (peeled commit `58cf8f9c35b355199727627d07ae34a4e2846d67`), **5 commits**.
+  (peeled commit `58cf8f9c35b355199727627d07ae34a4e2846d67`), **6 commits**
+  (the five rebased patches plus the new `cc` 1.2.65 fix).
   Patch 3 (`Update comment.txt`) was dropped as documentation-only.
 - **No commit was blocked**, but one important version decision was needed:
   Rust 1.99.1 pins LLVM `rustc/23.1-2026-07-22`, while YoWASP's wasm LLVM fork
@@ -22,7 +23,7 @@ Local analysis only. No pushes, no repo creation, no CI. Work area:
   (`src/bootstrap/src/core/build_steps/llvm.rs:651-663`) and has LLVM-22/23
   guards in `rustc_llvm/llvm-wrapper`, so the branch pins the **22.1.0+wasm**
   fork. A 23.x wasm port does not exist yet. This is the main build risk.
-- Net rebased diff vs `1.99.1`: **15 files, +351/−9**.
+- Net rebased diff vs `1.99.1`: **18 files, +376/−19**.
 
 ## Sources and SHAs
 

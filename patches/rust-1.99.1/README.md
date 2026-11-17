@@ -7,8 +7,8 @@ no second `rust` fork is needed.
 
 - **Upstream tag:** `rust-lang/rust` `1.99.1`
 - **Base commit:** `58cf8f9c35b355199727627d07ae34a4e2846d67`
-- **Patch series:** 5 commits, `0001` … `0005`, apply in order
-- **Net diff against the base:** 15 files, +351 / −9
+- **Patch series:** 6 commits, `0001` … `0006`, apply in order
+- **Net diff against the base:** 18 files, +376 / −19
 
 ## How CI applies them
 
@@ -27,7 +27,7 @@ before the patches would fetch the wrong LLVM.
 
 The script `ci/apply-rust-patches.sh` (in the recipe repo root) performs all of
 this and exits non-zero if a patch does not apply or if the series does not have
-exactly 5 files.
+exactly 6 files.
 
 ## Patches
 
@@ -38,10 +38,12 @@ exactly 5 files.
 | 0003 | `bab49c215b1` | `66b874f9926` | `Link against lld for linking compiled object files` | In-process LLD instead of spawning a linker: new `LLD.cpp` (`RustRunLld` around `lld::lldMain`, ELF + wasm drivers), calls it from `rustc_codegen_ssa/src/back/link.rs`, compiles/links `lldCommon`/`lldELF`/`lldWasm`/`LLVMOption` in `rustc_llvm/build.rs`, enables the `lld` CMake project for the wasm-host LLVM. The C++ side is gated to wasi targets so a native `x.py check` does not need LLD headers. |
 | 0004 | `315dd3f99d9` | `c8871cb8a52` | `Make linking for wasm32-wasip1 work by default` | Adds `-Clink-self-contained=no` for wasi in `src/bootstrap/src/core/builder/cargo.rs`; the remaining target-spec/config changes from the original commit were already upstream or landed in 0002. |
 | 0005 | `f7a223c1c21` | `f5e1d56ab21` | `Disable rpath for lld when requested` | Sets `CMAKE_SKIP_RPATH=ON` when LLD is built without rpath, preserving 1.99.1's separate Linux/Darwin rpath branches. |
+| 0006 | — | `7bbd7e60d99` | `Update cc to 1.2.65 for wasm32-wasip1-threads clang target` | New to this recipe series: bumps `rustc_llvm`'s exact `cc` pin (and the lockfile) from 1.2.16 to 1.2.65, the first release whose target table maps `wasm32-wasip1-threads` to `wasm32-wasip1-threads` instead of deprecated `wasm32-wasi`. Pulls `find-msvc-tools` 0.1.15 and `shlex` 2.0.1, both required by `cc` 1.2.65. |
 
-The original series had a sixth commit, `132c6388ad7` (`Update comment.txt`),
-which only updated stale 1.83-era documentation and was dropped during the
-rebase.
+The original oligamiq series had a sixth commit, `132c6388ad7` (`Update
+comment.txt`), which only updated stale 1.83-era documentation and was dropped
+during the rebase. Patch 0006 is unrelated to that commit: it is new in this
+recipe and fixes the `cc` clang target that broke the wasm host build.
 
 ## Known risks
 
@@ -66,4 +68,4 @@ git format-patch --no-signature --numbered -o ../rust_wasm/patches/rust-1.99.1 \
 ```
 
 Keep the file numbering; `ci/apply-rust-patches.sh` applies them sorted and
-fails if the count is not 5.
+fails if the count is not 6.
