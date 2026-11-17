@@ -22,9 +22,10 @@ on:
     branches:
       - main
 
+# Build logs are published to the `ci-logs` release, so only the jobs that do
+# that get contents: write; everything else is read-only.
 permissions:
-  packages: write
-  contents: write
+  contents: read
 
 jobs:
   # ============================================================
@@ -32,6 +33,8 @@ jobs:
   # Runs in parallel with install-unwind (~3.5h each)
   # ============================================================
   install-abort:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     if: ${{ (inputs.job || 'install') == 'install' }}
     steps:
@@ -147,6 +150,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: publish build log
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/publish-build-log.sh" \
+            "${GITHUB_WORKSPACE}/rust/build.log" install-abort
+
       - name: cache build directory
         uses: actions/cache/save@v4
         with:
@@ -173,6 +187,8 @@ jobs:
   # Runs in parallel with install-abort (~3.5h each)
   # ============================================================
   install-unwind:
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     # Fail fast: never spend ~1h more on the unwind build if the default
     # (panic=abort) build cannot even compile.
@@ -283,6 +299,17 @@ jobs:
           path: ${{ github.workspace }}/rust/build.log
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: publish build log
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/publish-build-log.sh" \
+            "${GITHUB_WORKSPACE}/rust/build.log" install-unwind
 
       - name: prepare unwind artifacts
         working-directory: '${{ github.workspace }}/rust'
@@ -408,6 +435,8 @@ jobs:
           if-no-files-found: error
 
   dist-linux:
+    permissions:
+      contents: write
     # strategy:
     #   matrix:
     #     WebAssembly: [true, false]
@@ -662,6 +691,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: publish build log
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/publish-build-log.sh" \
+            "${GITHUB_WORKSPACE}/rust/build.log" dist-linux
+
       - name: Configure git to trust the workspace despite the different owner
         run:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -687,6 +727,8 @@ jobs:
           if-no-files-found: error
 
   dist-macos:
+    permissions:
+      contents: write
     runs-on: macos-latest
     if: ${{ (inputs.job || 'install') == 'dist-macos' }}
     env:
@@ -806,6 +848,17 @@ jobs:
           if-no-files-found: ignore
           retention-days: 14
 
+      - name: publish build log
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/publish-build-log.sh" \
+            "${GITHUB_WORKSPACE}/rust/build.log" dist-macos
+
       - name: Configure git to trust the workspace despite the different owner
         run:
           git config --global --add safe.directory "$GITHUB_WORKSPACE"
@@ -831,6 +884,8 @@ jobs:
           if-no-files-found: error
 
   dist-windows:
+    permissions:
+      contents: write
     runs-on: windows-latest
     if: ${{ (inputs.job || 'install') == 'dist-windows' }}
     env:
@@ -965,6 +1020,17 @@ jobs:
           path: ${{ github.workspace }}/rust/build.log
           if-no-files-found: ignore
           retention-days: 14
+
+      - name: publish build log
+        if: always()
+        continue-on-error: true
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          bash "${GITHUB_WORKSPACE}/rust_wasm/ci/publish-build-log.sh" \
+            "${GITHUB_WORKSPACE}/rust/build.log" dist-windows
 
       - name: Configure git to trust the workspace despite the different owner
         run:
