@@ -1,4 +1,4 @@
-From 66b874f99265d784c4f2a89c6de5e42bc7b65780 Mon Sep 17 00:00:00 2001
+From 1ec38922e1141df6edbfd251ea4810c7eadf244e Mon Sep 17 00:00:00 2001
 From: bjorn3 <17426603+bjorn3@users.noreply.github.com>
 Date: Thu, 26 Sep 2024 18:24:29 +0200
 Subject: [PATCH 3/5] Link against lld for linking compiled object files
@@ -6,10 +6,10 @@ Subject: [PATCH 3/5] Link against lld for linking compiled object files
 (cherry picked from commit bab49c215b1e4e021420afe18ab9790a5f0b43b0)
 ---
  compiler/rustc_codegen_ssa/src/back/link.rs | 23 +++++++++++++++++++++
- compiler/rustc_llvm/build.rs                | 10 +++++++++
+ compiler/rustc_llvm/build.rs                | 15 ++++++++++++++
  compiler/rustc_llvm/llvm-wrapper/LLD.cpp    | 11 ++++++++++
  src/bootstrap/src/core/build_steps/llvm.rs  |  1 +
- 4 files changed, 45 insertions(+)
+ 4 files changed, 50 insertions(+)
  create mode 100644 compiler/rustc_llvm/llvm-wrapper/LLD.cpp
 
 diff --git a/compiler/rustc_codegen_ssa/src/back/link.rs b/compiler/rustc_codegen_ssa/src/back/link.rs
@@ -47,20 +47,25 @@ index 014e3ee8bd3..d869e7d84a9 100644
          Regex::new(r"(unknown|unrecognized) (command line )?(option|argument)").unwrap();
      let mut prog;
 diff --git a/compiler/rustc_llvm/build.rs b/compiler/rustc_llvm/build.rs
-index f3376e20fcf..5bad22a623f 100644
+index f3376e20fcf..a5a0154de92 100644
 --- a/compiler/rustc_llvm/build.rs
 +++ b/compiler/rustc_llvm/build.rs
-@@ -333,6 +333,9 @@ fn main() {
+@@ -333,6 +333,14 @@ fn main() {
      }
  
      rerun_if_changed_anything_in_dir(Path::new("llvm-wrapper"));
 +    if target.contains("wasi") {
 +        cfg.file("llvm-wrapper/LLD.cpp");
++        // The lld headers are not part of the include directories reported by
++        // llvm-config; they live in the lld source tree of the same checkout.
++        cfg.include(
++            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../src/llvm-project/lld/include"),
++        );
 +    }
      cfg.file("llvm-wrapper/PassWrapper.cpp")
          .file("llvm-wrapper/RustWrapper.cpp")
          .file("llvm-wrapper/CoverageMappingWrapper.cpp")
-@@ -459,6 +462,13 @@ fn main() {
+@@ -459,6 +467,13 @@ fn main() {
          println!("cargo:rustc-link-lib={kind}={name}");
      }
  

@@ -1,4 +1,4 @@
-From f5e1d56ab21d37ad42b8d366d280a079aa675fcb Mon Sep 17 00:00:00 2001
+From de2373d162ecf8b1250a6a9c03dbc062a4b46c6d Mon Sep 17 00:00:00 2001
 From: bjorn3 <17426603+bjorn3@users.noreply.github.com>
 Date: Thu, 26 Sep 2024 21:44:19 +0200
 Subject: [PATCH 5/5] Disable rpath for lld when requested

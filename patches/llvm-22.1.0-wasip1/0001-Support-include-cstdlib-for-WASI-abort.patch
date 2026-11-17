@@ -1,0 +1,30 @@
+Fix the wasm LLVM build with wasi-sdk 34 (clang 23): the YoWASP
+__wasi__ branches call abort(), but the fork stops including <csignal>
+on WASI and neither file includes <cstdlib>. The declaration is no
+longer available transitively, so LLVMSupport fails with
+"use of undeclared identifier 'abort'".
+
+diff --git a/llvm/lib/ExecutionEngine/Interpreter/ExternalFunctions.cpp b/llvm/lib/ExecutionEngine/Interpreter/ExternalFunctions.cpp
+index 5c8b94e..c61056a 100644
+--- a/llvm/lib/ExecutionEngine/Interpreter/ExternalFunctions.cpp
++++ b/llvm/lib/ExecutionEngine/Interpreter/ExternalFunctions.cpp
+@@ -33,6 +33,7 @@
+ #include "llvm/Support/Mutex.h"
+ #include "llvm/Support/raw_ostream.h"
+ #include <cassert>
++#include <cstdlib>
+ #include <cmath>
+ #if !defined(__wasi__)
+ #include <csignal>
+diff --git a/llvm/lib/Support/CrashRecoveryContext.cpp b/llvm/lib/Support/CrashRecoveryContext.cpp
+index 75792fe..f63da3d 100644
+--- a/llvm/lib/Support/CrashRecoveryContext.cpp
++++ b/llvm/lib/Support/CrashRecoveryContext.cpp
+@@ -13,6 +13,7 @@
+ #include "llvm/Support/Signals.h"
+ #include "llvm/Support/thread.h"
+ #include <cassert>
++#include <cstdlib>
+ #if !defined(__wasi__)
+ #include <csignal>
+ #endif

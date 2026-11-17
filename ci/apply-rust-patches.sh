@@ -56,5 +56,17 @@ echo "Initializing submodules at the patched gitlinks (shallow)..."
 git submodule sync --recursive
 git submodule update --init --recursive --depth 1
 
+# The pinned YoWASP LLVM fork predates wasi-sdk 34's stricter libc++
+# headers: its __wasi__ branches call abort() without including <cstdlib>, so
+# LLVMSupport no longer compiles. Apply the compatibility fix to the submodule.
+llvm_patch_dir="$(cd "$(dirname "$patch_dir")" && pwd)/llvm-22.1.0-wasip1"
+if [ -d "$llvm_patch_dir" ]; then
+  for p in "$llvm_patch_dir"/*.patch; do
+    [ -e "$p" ] || continue
+    echo "Applying LLVM patch $(basename "$p")"
+    git -C src/llvm-project apply "$p"
+  done
+fi
+
 echo "src/llvm-project: $(git submodule status src/llvm-project)"
 echo "Submodules ready."

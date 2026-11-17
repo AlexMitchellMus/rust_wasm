@@ -1,4 +1,4 @@
-From c8871cb8a52de5640369fd63570a4c8384234dd9 Mon Sep 17 00:00:00 2001
+From 5f82d28552cb41db861fda68cc98db076cd2d68e Mon Sep 17 00:00:00 2001
 From: bjorn3 <17426603+bjorn3@users.noreply.github.com>
 Date: Thu, 26 Sep 2024 21:43:07 +0200
 Subject: [PATCH 4/5] Make linking for wasm32-wasip1 work by default
