@@ -1,4 +1,4 @@
-From 6fad0339e24ad06826552fd06e7aecf628a645ed Mon Sep 17 00:00:00 2001
+From 2c3a888f30dfe083b15e281d58e391d4fa904299 Mon Sep 17 00:00:00 2001
 From: oligami <69239094+oligamiq@users.noreply.github.com>
 Date: Thu, 26 Sep 2024 00:04:20 +0900
 Subject: [PATCH 2/5] Compile rustc+LLVM to wasm

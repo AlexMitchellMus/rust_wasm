@@ -1,4 +1,4 @@
-From 3d08ef18932254388feec72a1b523f5a24a4c6d3 Mon Sep 17 00:00:00 2001
+From 30dfbdab1269207c12da5a461df2475f293b7845 Mon Sep 17 00:00:00 2001
 From: bjorn3 <17426603+bjorn3@users.noreply.github.com>
 Date: Thu, 25 Jan 2024 20:48:49 +0000
 Subject: [PATCH 1/5] [WIP] Support compiling rustc to WebAssembly
@@ -7,10 +7,11 @@ Subject: [PATCH 1/5] [WIP] Support compiling rustc to WebAssembly
 ---
  .gitignore                                    |  5 +++++
  compiler/rustc_codegen_ssa/src/back/linker.rs |  5 ++++-
+ compiler/rustc_driver/Cargo.toml              |  2 +-
  compiler/rustc_driver_impl/src/lib.rs         |  2 +-
  compiler/rustc_interface/src/util.rs          | 20 ++++++++++++++++++-
  compiler/rustc_metadata/src/host_dylib.rs     | 18 +++++++++++++++++
- 5 files changed, 47 insertions(+), 3 deletions(-)
+ 6 files changed, 48 insertions(+), 4 deletions(-)
 
 diff --git a/.gitignore b/.gitignore
 index 91a2647ca98..4a4c215f403 100644
@@ -41,6 +42,19 @@ index 4c99da5049e..8410ece301e 100644
  
      // FIXME: Move `/LIBPATH` addition for uwp targets from the linker construction
      // to the linker args construction.
+diff --git a/compiler/rustc_driver/Cargo.toml b/compiler/rustc_driver/Cargo.toml
+index 51909719827..bd6f96fd11a 100644
+--- a/compiler/rustc_driver/Cargo.toml
++++ b/compiler/rustc_driver/Cargo.toml
+@@ -4,7 +4,7 @@ version = "0.0.0"
+ edition = "2024"
+ 
+ [lib]
+-crate-type = ["dylib"]
++crate-type = ["lib", "dylib"]
+ 
+ [dependencies]
+ # tidy-alphabetical-start
 diff --git a/compiler/rustc_driver_impl/src/lib.rs b/compiler/rustc_driver_impl/src/lib.rs
 index e2c9f3f909b..f5f47649ace 100644
 --- a/compiler/rustc_driver_impl/src/lib.rs

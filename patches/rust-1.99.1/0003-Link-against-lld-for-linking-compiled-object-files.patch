@@ -1,4 +1,4 @@
-From 3e38ba7bad0cc941934036fe302ca1b6161e97a5 Mon Sep 17 00:00:00 2001
+From 8770bb043fce94a1dd1e2b60a3854d851f789c66 Mon Sep 17 00:00:00 2001
 From: bjorn3 <17426603+bjorn3@users.noreply.github.com>
 Date: Thu, 26 Sep 2024 18:24:29 +0200
 Subject: [PATCH 3/5] Link against lld for linking compiled object files
