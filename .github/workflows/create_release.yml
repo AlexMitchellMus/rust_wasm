@@ -98,7 +98,7 @@ jobs:
                 echo "Replacing broken symlink with actual source code..."
                 rm -rf src
                 mkdir -p src/rust
-                git clone --depth 1 -b compile_rustc_for_wasm17 https://github.com/oligamiq/rust /tmp/rust-clone
+                git clone --depth 1 -b compile_rustc_for_wasm-1.99.1 https://github.com/AlexMitchellMus/rust /tmp/rust-clone
                 cp -r /tmp/rust-clone/library src/rust/
                 cp -r /tmp/rust-clone/src src/rust/
                 cp -r /tmp/rust-clone/compiler src/rust/

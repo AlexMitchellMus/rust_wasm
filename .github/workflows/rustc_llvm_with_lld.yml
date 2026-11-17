@@ -33,16 +33,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           # repository: 'bjorn3/rust'
-          repository: 'oligamiq/rust' # patch
+          repository: 'AlexMitchellMus/rust' # phase B: fork does not exist yet
           submodules: 'true'
-          ref: 'compile_rustc_for_wasm17'
+          ref: 'compile_rustc_for_wasm-1.99.1'
           path: 'rust'
-
-      - name: checkout
-        run: |
-          cd rust
-          git fetch origin compile_rustc_for_wasm16_cargo --depth 40
-          git checkout cf327c2068549194a29160499c2ecafa9061e46e
 
       - uses: actions/checkout@v4
         with:
@@ -53,10 +47,10 @@ jobs:
         working-directory: '${{ github.workspace }}/rust'
         shell: bash
         run: |
-          curl -OL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz
-          tar -xzf wasi-sdk-24.0-x86_64-linux.tar.gz
-          rm wasi-sdk-24.0-x86_64-linux.tar.gz
-          mv wasi-sdk-24.0-* wasi-sdk
+          curl -OL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz
+          tar -xzf wasi-sdk-34.0-x86_64-linux.tar.gz
+          rm wasi-sdk-34.0-x86_64-linux.tar.gz
+          mv wasi-sdk-34.0-* wasi-sdk
           chmod -R 755 wasi-sdk
           echo "WASI_SDK_PATH=${{ github.workspace }}/rust/wasi-sdk" >> $GITHUB_ENV
           echo "WASI_SYSROOT=${{ github.workspace }}/rust/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
@@ -105,7 +99,7 @@ jobs:
           sed "s|wasi-root = .*|wasi-root = \"${WS_FORWARD}/rust/wasi-sdk/share/wasi-sysroot\"|g" config.llvm.toml > config.llvm.toml.tmp
           mv config.llvm.toml.tmp config.llvm.toml
           # Fallback for any other occurrences
-          sed "s|wasi-sdk-24\.0-[^/\"]*|${WS_FORWARD}/rust/wasi-sdk|g" config.llvm.toml > config.llvm.toml.tmp
+          sed "s|wasi-sdk-[0-9][^/\"]*|${WS_FORWARD}/rust/wasi-sdk|g" config.llvm.toml > config.llvm.toml.tmp
           mv config.llvm.toml.tmp config.llvm.toml
           echo "=== config.llvm.toml after patching ==="
           grep wasi config.llvm.toml || true
@@ -129,7 +123,7 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ github.workspace }}/rust/build
-          key: build-dir-${{ runner.os }}-compile_rustc_for_wasm17
+          key: build-dir-${{ runner.os }}-compile_rustc_for_wasm-1.99.1
 
       - name: prepare abort artifacts
         working-directory: '${{ github.workspace }}/rust'
@@ -157,16 +151,10 @@ jobs:
       - name: copy source
         uses: actions/checkout@v4
         with:
-          repository: 'oligamiq/rust' # patch
+          repository: 'AlexMitchellMus/rust' # phase B: fork does not exist yet
           submodules: 'true'
-          ref: 'compile_rustc_for_wasm17'
+          ref: 'compile_rustc_for_wasm-1.99.1'
           path: 'rust'
-
-      - name: checkout
-        run: |
-          cd rust
-          git fetch origin compile_rustc_for_wasm16_cargo --depth 40
-          git checkout cf327c2068549194a29160499c2ecafa9061e46e
 
       - uses: actions/checkout@v4
         with:
@@ -177,10 +165,10 @@ jobs:
         working-directory: '${{ github.workspace }}/rust'
         shell: bash
         run: |
-          curl -OL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz
-          tar -xzf wasi-sdk-24.0-x86_64-linux.tar.gz
-          rm wasi-sdk-24.0-x86_64-linux.tar.gz
-          mv wasi-sdk-24.0-* wasi-sdk
+          curl -OL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz
+          tar -xzf wasi-sdk-34.0-x86_64-linux.tar.gz
+          rm wasi-sdk-34.0-x86_64-linux.tar.gz
+          mv wasi-sdk-34.0-* wasi-sdk
           chmod -R 755 wasi-sdk
           echo "WASI_SDK_PATH=${{ github.workspace }}/rust/wasi-sdk" >> $GITHUB_ENV
           echo "WASI_SYSROOT=${{ github.workspace }}/rust/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
@@ -229,7 +217,7 @@ jobs:
           sed "s|wasi-root = .*|wasi-root = \"${WS_FORWARD}/rust/wasi-sdk/share/wasi-sysroot\"|g" config.llvm.toml > config.llvm.toml.tmp
           mv config.llvm.toml.tmp config.llvm.toml
           # Fallback for any other occurrences
-          sed "s|wasi-sdk-24\.0-[^/\"]*|${WS_FORWARD}/rust/wasi-sdk|g" config.llvm.toml > config.llvm.toml.tmp
+          sed "s|wasi-sdk-[0-9][^/\"]*|${WS_FORWARD}/rust/wasi-sdk|g" config.llvm.toml > config.llvm.toml.tmp
           mv config.llvm.toml.tmp config.llvm.toml
           echo "=== config.llvm.toml after patching ==="
           grep wasi config.llvm.toml || true
@@ -378,16 +366,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           # repository: 'bjorn3/rust'
-          repository: 'oligamiq/rust' # patch
+          repository: 'AlexMitchellMus/rust' # phase B: fork does not exist yet
           submodules: 'true'
-          ref: 'compile_rustc_for_wasm17'
+          ref: 'compile_rustc_for_wasm-1.99.1'
           path: 'rust'
-
-      - name: checkout
-        run: |
-          cd rust
-          git fetch origin compile_rustc_for_wasm16_cargo --depth 40
-          git checkout cf327c2068549194a29160499c2ecafa9061e46e
 
       - uses: actions/checkout@v4
         with:
@@ -415,10 +397,10 @@ jobs:
         working-directory: '${{ github.workspace }}/rust'
         shell: bash
         run: |
-          curl -OL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-linux.tar.gz
-          tar -xzf wasi-sdk-24.0-x86_64-linux.tar.gz
-          rm wasi-sdk-24.0-x86_64-linux.tar.gz
-          mv wasi-sdk-24.0-* wasi-sdk
+          curl -OL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-linux.tar.gz
+          tar -xzf wasi-sdk-34.0-x86_64-linux.tar.gz
+          rm wasi-sdk-34.0-x86_64-linux.tar.gz
+          mv wasi-sdk-34.0-* wasi-sdk
           chmod -R 755 wasi-sdk
           echo "WASI_SDK_PATH=${{ github.workspace }}/rust/wasi-sdk" >> $GITHUB_ENV
           echo "WASI_SYSROOT=${{ github.workspace }}/rust/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
@@ -558,7 +540,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/rust/build
-          key: build-dir-${{ runner.os }}-compile_rustc_for_wasm17
+          key: build-dir-${{ runner.os }}-compile_rustc_for_wasm-1.99.1
 
       - name: install toolchain-for-building-rustc
         working-directory: '${{ github.workspace }}/rust'
@@ -584,7 +566,7 @@ jobs:
           sed "s|wasi-root = .*|wasi-root = \"${WS_FORWARD}/rust/wasi-sdk/share/wasi-sysroot\"|g" config.llvm.toml > config.llvm.toml.tmp
           mv config.llvm.toml.tmp config.llvm.toml
           # Fallback for any other occurrences
-          sed "s|wasi-sdk-24\.0-[^/\"]*|${WS_FORWARD}/rust/wasi-sdk|g" config.llvm.toml > config.llvm.toml.tmp
+          sed "s|wasi-sdk-[0-9][^/\"]*|${WS_FORWARD}/rust/wasi-sdk|g" config.llvm.toml > config.llvm.toml.tmp
           mv config.llvm.toml.tmp config.llvm.toml
           echo "=== config.llvm.toml after patching ==="
           grep wasi config.llvm.toml || true
@@ -638,16 +620,10 @@ jobs:
         uses: actions/checkout@v4
         with:
           # repository: 'bjorn3/rust'
-          repository: 'oligamiq/rust' # patch
+          repository: 'AlexMitchellMus/rust' # phase B: fork does not exist yet
           submodules: 'true'
-          ref: 'compile_rustc_for_wasm17'
+          ref: 'compile_rustc_for_wasm-1.99.1'
           path: 'rust'
-
-      - name: checkout
-        run: |
-          cd rust
-          git fetch origin compile_rustc_for_wasm16_cargo --depth 40
-          git checkout cf327c2068549194a29160499c2ecafa9061e46e
 
       - uses: actions/checkout@v4
         with:
@@ -678,10 +654,10 @@ jobs:
         working-directory: '${{ github.workspace }}/rust'
         shell: bash
         run: |
-          curl -OL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-arm64-macos.tar.gz
-          tar -xzf wasi-sdk-24.0-arm64-macos.tar.gz
-          rm wasi-sdk-24.0-arm64-macos.tar.gz
-          mv wasi-sdk-24.0-* wasi-sdk
+          curl -OL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-arm64-macos.tar.gz
+          tar -xzf wasi-sdk-34.0-arm64-macos.tar.gz
+          rm wasi-sdk-34.0-arm64-macos.tar.gz
+          mv wasi-sdk-34.0-* wasi-sdk
           chmod -R 755 wasi-sdk
           echo "WASI_SDK_PATH=${{ github.workspace }}/rust/wasi-sdk" >> $GITHUB_ENV
           echo "WASI_SYSROOT=${{ github.workspace }}/rust/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
@@ -710,7 +686,7 @@ jobs:
           sed "s|wasi-root = .*|wasi-root = \"${WS_FORWARD}/rust/wasi-sdk/share/wasi-sysroot\"|g" config.llvm.toml > config.llvm.toml.tmp
           mv config.llvm.toml.tmp config.llvm.toml
           # Fallback for any other occurrences
-          sed "s|wasi-sdk-24\.0-[^/\"]*|${WS_FORWARD}/rust/wasi-sdk|g" config.llvm.toml > config.llvm.toml.tmp
+          sed "s|wasi-sdk-[0-9][^/\"]*|${WS_FORWARD}/rust/wasi-sdk|g" config.llvm.toml > config.llvm.toml.tmp
           mv config.llvm.toml.tmp config.llvm.toml
           echo "=== config.llvm.toml after patching ==="
           grep wasi config.llvm.toml || true
@@ -719,7 +695,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/rust/build
-          key: build-dir-Linux-compile_rustc_for_wasm17
+          key: build-dir-Linux-compile_rustc_for_wasm-1.99.1
 
       - name: build dist
         working-directory: '${{ github.workspace }}/rust'
@@ -765,16 +741,10 @@ jobs:
       - name: copy source
         uses: actions/checkout@v4
         with:
-          repository: 'oligamiq/rust' # patch
+          repository: 'AlexMitchellMus/rust' # phase B: fork does not exist yet
           submodules: 'true'
-          ref: 'compile_rustc_for_wasm17'
+          ref: 'compile_rustc_for_wasm-1.99.1'
           path: 'rust'
-
-      - name: checkout
-        run: |
-          cd rust
-          git fetch origin compile_rustc_for_wasm16_cargo --depth 40
-          git checkout cf327c2068549194a29160499c2ecafa9061e46e
 
       - uses: actions/checkout@v4
         with:
@@ -801,10 +771,10 @@ jobs:
         working-directory: '${{ github.workspace }}/rust'
         shell: bash
         run: |
-          curl -OL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-24/wasi-sdk-24.0-x86_64-windows.tar.gz
-          tar -xzf wasi-sdk-24.0-x86_64-windows.tar.gz
-          rm wasi-sdk-24.0-x86_64-windows.tar.gz
-          mv wasi-sdk-24.0-* wasi-sdk
+          curl -OL https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/wasi-sdk-34.0-x86_64-windows.tar.gz
+          tar -xzf wasi-sdk-34.0-x86_64-windows.tar.gz
+          rm wasi-sdk-34.0-x86_64-windows.tar.gz
+          mv wasi-sdk-34.0-* wasi-sdk
           echo "WASI_SDK_PATH=${{ github.workspace }}/rust/wasi-sdk" >> $GITHUB_ENV
           echo "WASI_SYSROOT=${{ github.workspace }}/rust/wasi-sdk/share/wasi-sysroot" >> $GITHUB_ENV
 
@@ -833,7 +803,7 @@ jobs:
           sed "s|wasi-root = .*|wasi-root = \"${WS_FORWARD}/rust/wasi-sdk/share/wasi-sysroot\"|g" config.llvm.toml > config.llvm.toml.tmp
           mv config.llvm.toml.tmp config.llvm.toml
           # Fallback for any other occurrences
-          sed "s|wasi-sdk-24\.0-[^/\"]*|${WS_FORWARD}/rust/wasi-sdk|g" config.llvm.toml > config.llvm.toml.tmp
+          sed "s|wasi-sdk-[0-9][^/\"]*|${WS_FORWARD}/rust/wasi-sdk|g" config.llvm.toml > config.llvm.toml.tmp
           mv config.llvm.toml.tmp config.llvm.toml
           echo "=== config.llvm.toml after patching ==="
           grep wasi config.llvm.toml || true
@@ -848,7 +818,7 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ github.workspace }}/rust/build
-          key: build-dir-Linux-compile_rustc_for_wasm17
+          key: build-dir-Linux-compile_rustc_for_wasm-1.99.1
 
       - name: build dist
         working-directory: '${{ github.workspace }}/rust'
