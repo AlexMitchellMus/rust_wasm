@@ -43,20 +43,48 @@ mkdir -p "$(dirname "$LOG")" "$(dirname "$OUT")"
 # experiment tree) or left uncommitted (a fresh CI checkout); the reverse
 # check covers both and makes reruns idempotent.
 RUST_PATCH="$ROOT/stage-c/patches/rust/0001-wasm-run-compiler-and-codegen-on-calling-thread.patch"
-if ! git -C "$SRC" apply --reverse --check "$RUST_PATCH" 2>/dev/null; then
+if git -C "$SRC" apply --reverse --check "$RUST_PATCH" 2>/dev/null; then
+    echo "rust patch already applied"
+else
+    echo "applying $(basename "$RUST_PATCH")"
     git -C "$SRC" apply "$RUST_PATCH"
 fi
-# clif-to-wasm patch.
+git -C "$SRC" apply --reverse --check "$RUST_PATCH" || {
+    echo "rust patch is not present after apply" >&2; exit 1; }
+
+# clif-to-wasm patch (this checkout is the repository root, so the patch's
+# src/... paths resolve correctly).
 CLIF_PATCH="$ROOT/stage-c/patches/clif-to-wasm/0001-lower-wasm-memory-grow-and-size.patch"
-if ! git -C "$CLIF" apply --reverse --check "$CLIF_PATCH" 2>/dev/null; then
+if git -C "$CLIF" apply --reverse --check "$CLIF_PATCH" 2>/dev/null; then
+    echo "clif-to-wasm patch already applied"
+else
+    echo "applying $(basename "$CLIF_PATCH")"
     git -C "$CLIF" apply "$CLIF_PATCH"
 fi
+git -C "$CLIF" apply --reverse --check "$CLIF_PATCH" || {
+    echo "clif-to-wasm patch is not present after apply" >&2; exit 1; }
+
 # cg_clif patches (in-tree copy; stage A's wasm patch is already applied there).
+# The patch paths are src/... relative to the *rust* repository root, not to
+# the cg_clif directory. Running `git -C "$CG" apply` here silently reports
+# "Skipped patch" and exits 0 because the path is outside the current
+# directory, which left a fresh CI tree unpatched. Apply with --directory from
+# the root instead, then assert the content is really there.
+CG_PREFIX=compiler/rustc_codegen_cranelift
 for p in "$ROOT"/stage-c/patches/cg_clif/000[12]-*.patch; do
-    if ! git -C "$CG" apply --reverse --check "$p" 2>/dev/null; then
-        git -C "$CG" apply "$p"
+    if git -C "$SRC" apply --reverse --check --directory="$CG_PREFIX" "$p" 2>/dev/null; then
+        echo "$(basename "$p") already applied"
+    else
+        echo "applying $(basename "$p")"
+        git -C "$SRC" apply --directory="$CG_PREFIX" "$p"
     fi
+    git -C "$SRC" apply --reverse --check --directory="$CG_PREFIX" "$p" || {
+        echo "$(basename "$p") is not present after apply" >&2; exit 1; }
 done
+grep -q 'llvm.wasm.memory.grow.i32' "$CG/src/intrinsics/llvm.rs" || {
+    echo "cg_clif memory.grow lowering missing from $CG/src/intrinsics/llvm.rs" >&2; exit 1; }
+grep -q 'pub enum WasmIntrinsic' "$CLIF/src/wasm_intrinsic.rs" || {
+    echo "clif-to-wasm WasmIntrinsic missing from $CLIF/src/wasm_intrinsic.rs" >&2; exit 1; }
 # The in-tree cg_clif must consume the patched clif-to-wasm, not crates.io.
 # Fail loudly if the pinned Cargo.toml line changes: a silent no-op would use
 # the crates.io release without the memory.grow patch.
