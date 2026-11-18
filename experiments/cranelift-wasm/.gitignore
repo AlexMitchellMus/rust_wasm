@@ -1,0 +1,10 @@
+# All downloaded sources, toolchains and build outputs live here.
+/toolchain/
+
+# Per-program Cargo outputs (we build with a central CARGO_TARGET_DIR).
+/programs/**/target/
+
+# Build artifacts; keep results/*.md and results/*.json.
+*.wasm
+*.o
+*.cwasm

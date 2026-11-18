@@ -1,0 +1,191 @@
+[
+  {
+    "config": "clif-lld-o2",
+    "program": "a_add",
+    "cold_s": 6.366,
+    "warm_s": 0.127,
+    "size": 236,
+    "validation": "valid: 236 bytes",
+    "add": "add(20,22) = 42 (20 us)"
+  },
+  {
+    "config": "clif-lld-o2",
+    "program": "b_alloc",
+    "cold_s": 7.056,
+    "warm_s": 0.153,
+    "size": 89739,
+    "validation": "valid: 89739 bytes",
+    "bench_ns_per_iter": 98.19
+  },
+  {
+    "config": "clif-lld-o2",
+    "program": "c_plugin",
+    "cold_s": 6.855,
+    "warm_s": 0.145,
+    "size": 34502,
+    "validation": "valid: 34502 bytes",
+    "plugin": "eval rc=0 result=2.25 in 1.417\u00b5s"
+  },
+  {
+    "config": "clif-lld-o2-prebuilt",
+    "program": "a_add",
+    "cold_s": 0.166,
+    "warm_s": 0.075,
+    "size": 236,
+    "validation": "valid: 236 bytes",
+    "add": "add(20,22) = 42 (18 us)"
+  },
+  {
+    "config": "clif-lld-o2-prebuilt",
+    "program": "b_alloc",
+    "cold_s": 1.07,
+    "warm_s": 0.1,
+    "size": 60741,
+    "validation": "valid: 60741 bytes",
+    "bench_ns_per_iter": 101.01
+  },
+  {
+    "config": "clif-lld-o2-prebuilt",
+    "program": "c_plugin",
+    "cold_s": 0.184,
+    "warm_s": 0.089,
+    "size": 18225,
+    "validation": "valid: 18225 bytes",
+    "plugin": "eval rc=0 result=2.25 in 1.583\u00b5s"
+  },
+  {
+    "config": "clif-wild-o2",
+    "program": "a_add",
+    "cold_s": 6.814,
+    "warm_s": 0.118,
+    "size": 267,
+    "validation": "valid: 267 bytes",
+    "add": "add(20,22) = 42 (19 us)"
+  },
+  {
+    "config": "clif-wild-o2",
+    "program": "b_alloc",
+    "cold_s": 7.171,
+    "warm_s": 0.141,
+    "size": 1139729,
+    "validation": "valid: 1139729 bytes",
+    "bench_ns_per_iter": 98.62
+  },
+  {
+    "config": "clif-wild-o2",
+    "program": "c_plugin",
+    "cold_s": 6.738,
+    "warm_s": 0.132,
+    "size": 1083560,
+    "validation": "valid: 1083560 bytes",
+    "plugin": "eval rc=0 result=2.25 in 1.5\u00b5s"
+  },
+  {
+    "config": "llvm-lld-o2",
+    "program": "a_add",
+    "cold_s": 0.168,
+    "warm_s": 0.074,
+    "size": 306,
+    "validation": "valid: 306 bytes",
+    "add": "add(20,22) = 42 (17 us)"
+  },
+  {
+    "config": "llvm-lld-o2",
+    "program": "b_alloc",
+    "cold_s": 0.837,
+    "warm_s": 0.117,
+    "size": 18920,
+    "validation": "valid: 18920 bytes",
+    "bench_ns_per_iter": 25.28
+  },
+  {
+    "config": "llvm-lld-o2",
+    "program": "c_plugin",
+    "cold_s": 0.195,
+    "warm_s": 0.1,
+    "size": 7274,
+    "validation": "valid: 7274 bytes",
+    "plugin": "eval rc=0 result=2.25 in 1.875\u00b5s"
+  },
+  {
+    "config": "llvm-wild-o2",
+    "program": "a_add",
+    "cold_s": 0.153,
+    "warm_s": 0.061,
+    "size": 265,
+    "validation": "valid: 265 bytes",
+    "add": "add(20,22) = 42 (17 us)"
+  },
+  {
+    "config": "llvm-wild-o2",
+    "program": "b_alloc",
+    "cold_s": 0.816,
+    "warm_s": 0.103,
+    "size": 1067615,
+    "validation": "valid: 1067615 bytes",
+    "bench_ns_per_iter": 24.93
+  },
+  {
+    "config": "llvm-wild-o2",
+    "program": "c_plugin",
+    "cold_s": 0.18,
+    "warm_s": 0.088,
+    "size": 1055837,
+    "validation": "valid: 1055837 bytes",
+    "plugin": "eval rc=0 result=2.25 in 2.291\u00b5s"
+  },
+  {
+    "config": "clif-lld-o0",
+    "program": "a_add",
+    "cold_s": 0.17,
+    "warm_s": 0.074,
+    "size": 304,
+    "validation": "valid: 304 bytes",
+    "add": "add(20,22) = 42 (20 us)"
+  },
+  {
+    "config": "clif-lld-o0",
+    "program": "b_alloc",
+    "cold_s": 1.344,
+    "warm_s": 0.1,
+    "size": 80026,
+    "validation": "valid: 80026 bytes",
+    "bench_ns_per_iter": 238.87
+  },
+  {
+    "config": "clif-lld-o0",
+    "program": "c_plugin",
+    "cold_s": 0.179,
+    "warm_s": 0.086,
+    "size": 25299,
+    "validation": "valid: 25299 bytes",
+    "plugin": "eval rc=0 result=2.25 in 1.417\u00b5s"
+  },
+  {
+    "config": "llvm-lld-o0",
+    "program": "a_add",
+    "cold_s": 0.166,
+    "warm_s": 0.073,
+    "size": 307,
+    "validation": "valid: 307 bytes",
+    "add": "add(20,22) = 42 (19 us)"
+  },
+  {
+    "config": "llvm-lld-o0",
+    "program": "b_alloc",
+    "cold_s": 0.746,
+    "warm_s": 0.1,
+    "size": 60221,
+    "validation": "valid: 60221 bytes",
+    "bench_ns_per_iter": 206.51
+  },
+  {
+    "config": "llvm-lld-o0",
+    "program": "c_plugin",
+    "cold_s": 0.169,
+    "warm_s": 0.091,
+    "size": 16442,
+    "validation": "valid: 16442 bytes",
+    "plugin": "eval rc=0 result=2.25 in 1.458\u00b5s"
+  }
+]
