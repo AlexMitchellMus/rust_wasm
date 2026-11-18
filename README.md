@@ -17,6 +17,24 @@ This project builds and distributes the Rust compiler and LLVM tools compiled to
 ## Platform Support
 This project targets Tier 1 and Tier 2 host platforms. See [Rust Platform Support](https://doc.rust-lang.org/nightly/rustc/platform-support.html) for details.
 
+## CI
+
+- [`cranelift_wasm.yml`](.github/workflows/cranelift_wasm.yml) is the primary
+  path. It runs on pushes to `main` that touch
+  `experiments/cranelift-wasm/**` or the workflow itself, plus
+  `workflow_dispatch`. It builds the pure-Rust `rustc.wasm`
+  (`wasm32-wasip1`, Cranelift/cg_clif only), builds the plugin sysroot with
+  `rustc.wasm` itself, runs plugin (c) end to end on Wasmtime 50.0.2 and
+  asserts `eval(1,2,3,4) == 2.25`, checks A.2 (e)/(f) correctness, and audits
+  `rustc.wasm` for LLVM imports/symbols. The full build log is published to the
+  [`ci-logs` release](https://github.com/AlexMitchellMus/rust_wasm/releases/tag/ci-logs);
+  `rustc.wasm` and the pure sysroot are workflow artifacts kept for 7 days.
+  The same logic runs locally:
+  `experiments/cranelift-wasm/ci/build-and-test.sh`.
+- [`rustc_llvm_with_lld.yml`](.github/workflows/rustc_llvm_with_lld.yml) builds
+  the LLVM/LLD-based compiler and dist jobs. It is **manual only**
+  (`workflow_dispatch`) and no longer runs on push.
+
 ## 🚀 Release Process
 
 To prevent repository bloat, we no longer commit binaries to Git. Instead, we use **GitHub Actions Artifacts** and **GitHub Releases**.
