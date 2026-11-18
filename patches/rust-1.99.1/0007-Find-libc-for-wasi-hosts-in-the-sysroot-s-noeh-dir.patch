@@ -1,0 +1,167 @@
+From 7cc730ae66cc034e442577ec82e7349e0a39f89b Mon Sep 17 00:00:00 2001
+From: AlexMitchellMus <12004932+AlexMitchellMus@users.noreply.github.com>
+Date: Wed, 18 Nov 2026 14:58:10 +1030
+Subject: [PATCH 7/7] Find libc++ for wasi hosts in the sysroot's noeh dir
+
+wasi-sdk 34 moved libc++.a from lib/<triple>/ into lib/<triple>/{noeh,eh}/, so clang's -print-file-name returns the bare name and bootstrap passed an empty -L directory to rustc_llvm.
+
+Resolve the libc++ multilib from the configured wasi-root for wasi targets, preferring noeh (LLVM is built with -fno-exceptions by default), then the old flat layout, and only then clang's search with the matching -fno-exceptions flag.
+
+Also make compiler_file panic with the file, compiler, and target if clang returns a path that is not absolute or does not exist.
+---
+ src/bootstrap/src/core/build_steps/compile.rs | 116 ++++++++++++++++--
+ 1 file changed, 108 insertions(+), 8 deletions(-)
+
+diff --git a/src/bootstrap/src/core/build_steps/compile.rs b/src/bootstrap/src/core/build_steps/compile.rs
+index f3bc12767e6..500baea3e5d 100644
+--- a/src/bootstrap/src/core/build_steps/compile.rs
++++ b/src/bootstrap/src/core/build_steps/compile.rs
+@@ -1478,13 +1478,37 @@ fn rustc_llvm_env(builder: &Builder<'_>, cargo: &mut Cargo, target: TargetSelect
+         } else {
+             "libstdc++.a"
+         };
+-        let file = compiler_file(
+-            builder,
+-            &builder.cxx(target).unwrap(),
+-            target,
+-            CLang::Cxx,
+-            libstdcxx_name,
+-        );
++        let file = if target.contains("wasi") {
++            // wasi-sdk 34 splits libc++ into `noeh`/`eh` multilibs, selected by whether
++            // exceptions are enabled. LLVM builds itself with `-fno-exceptions` unless
++            // `LLVM_ENABLE_EH` is turned on, so pick the matching multilib. Fall back to
++            // the older flat layout, then to clang's own search.
++            let exceptions = llvm_enable_eh(builder);
++            let libdir = builder.wasi_libdir(target);
++            libdir
++                .as_deref()
++                .and_then(|libdir| wasi_libcxx(libdir, libstdcxx_name, exceptions))
++                .unwrap_or_else(|| {
++                    let extra_flags =
++                        if exceptions { &[][..] } else { &["-fno-exceptions"][..] };
++                    compiler_file_with_flags(
++                        builder,
++                        &builder.cxx(target).unwrap(),
++                        target,
++                        CLang::Cxx,
++                        libstdcxx_name,
++                        extra_flags,
++                    )
++                })
++        } else {
++            compiler_file(
++                builder,
++                &builder.cxx(target).unwrap(),
++                target,
++                CLang::Cxx,
++                libstdcxx_name,
++            )
++        };
+         cargo.env("LLVM_STATIC_STDCPP", file);
+     }
+     if builder.llvm_link_shared() {
+@@ -1889,12 +1913,47 @@ pub fn normalize_codegen_backend_name(builder: &Builder<'_>, path: &Path) -> Str
+     format!("{}-{}{}", &filename[..dash], builder.rust_release(), &filename[dot..])
+ }
+ 
++/// Returns whether LLVM is built with C++ exceptions enabled.
++///
++/// LLVM defaults to `-fno-exceptions`; `LLVM_ENABLE_EH` is the CMake switch
++/// that turns them on.
++fn llvm_enable_eh(builder: &Builder<'_>) -> bool {
++    builder
++        .config
++        .llvm_build_config
++        .get("LLVM_ENABLE_EH")
++        .is_some_and(|v| v.eq_ignore_ascii_case("on") || v == "1")
++}
++
++/// Find the static libc++ runtime for a wasi target in the wasi-sdk sysroot.
++///
++/// wasi-sdk 34 moved `libc++.a` from `lib/<triple>/` into the `noeh` and `eh`
++/// multilib directories, so prefer the one matching whether exceptions are
++/// enabled, then fall back to the flat layout used by older wasi-sdk releases.
++fn wasi_libcxx(libdir: &Path, file: &str, exceptions: bool) -> Option<PathBuf> {
++    let multilib = if exceptions { "eh" } else { "noeh" };
++    [libdir.join(multilib).join(file), libdir.join(file)]
++        .into_iter()
++        .find(|candidate| candidate.is_file())
++}
++
+ pub fn compiler_file(
+     builder: &Builder<'_>,
+     compiler: &Path,
+     target: TargetSelection,
+     c: CLang,
+     file: &str,
++) -> PathBuf {
++    compiler_file_with_flags(builder, compiler, target, c, file, &[])
++}
++
++fn compiler_file_with_flags(
++    builder: &Builder<'_>,
++    compiler: &Path,
++    target: TargetSelection,
++    c: CLang,
++    file: &str,
++    extra_flags: &[&str],
+ ) -> PathBuf {
+     if builder.config.dry_run() {
+         return PathBuf::new();
+@@ -1902,9 +1961,19 @@ pub fn compiler_file(
+     let mut cmd = command(compiler);
+     cmd.args(builder.cc_handled_cflags(target, c));
+     cmd.args(builder.cc_unhandled_cflags(target, GitRepo::Rustc, c));
++    cmd.args(extra_flags);
+     cmd.arg(format!("-print-file-name={file}"));
+     let out = cmd.run_capture_stdout(builder).stdout();
+-    PathBuf::from(out.trim())
++    let path = PathBuf::from(out.trim());
++    if !path.is_absolute() || !path.is_file() {
++        panic!(
++            "could not find `{file}` with compiler `{}` for target `{target}`: \
++             `-print-file-name` returned `{path}`",
++            compiler.display(),
++            path = path.display(),
++        );
++    }
++    path
+ }
+ 
+ #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+@@ -2930,3 +2999,34 @@ pub fn strip_debug(builder: &Builder<'_>, target: TargetSelection, path: &Path)
+ pub fn is_lto_stage(build_compiler: &Compiler) -> bool {
+     build_compiler.stage != 0
+ }
++
++#[cfg(test)]
++mod tests {
++    use std::fs;
++
++    use super::wasi_libcxx;
++
++    #[test]
++    fn finds_wasi_libcxx_in_multilib_and_legacy_layouts() {
++        let tmp = tempfile::TempDir::new().unwrap();
++        let libdir = tmp.path().join("lib/wasm32-wasip1-threads");
++        fs::create_dir_all(libdir.join("noeh")).unwrap();
++        fs::write(libdir.join("noeh/libc++.a"), "").unwrap();
++        fs::create_dir_all(libdir.join("eh")).unwrap();
++        fs::write(libdir.join("eh/libc++.a"), "").unwrap();
++
++        assert_eq!(
++            wasi_libcxx(&libdir, "libc++.a", false).unwrap(),
++            libdir.join("noeh/libc++.a")
++        );
++        assert_eq!(wasi_libcxx(&libdir, "libc++.a", true).unwrap(), libdir.join("eh/libc++.a"));
++
++        // Older wasi-sdk releases shipped a flat libc++.a.
++        let legacy = tmp.path().join("legacy/wasm32-wasip1-threads");
++        fs::create_dir_all(&legacy).unwrap();
++        fs::write(legacy.join("libc++.a"), "").unwrap();
++        assert_eq!(wasi_libcxx(&legacy, "libc++.a", false).unwrap(), legacy.join("libc++.a"));
++
++        assert_eq!(wasi_libcxx(tmp.path(), "libc++.a", false), None);
++    }
++}

@@ -7,8 +7,8 @@ no second `rust` fork is needed.
 
 - **Upstream tag:** `rust-lang/rust` `1.99.1`
 - **Base commit:** `58cf8f9c35b355199727627d07ae34a4e2846d67`
-- **Patch series:** 6 commits, `0001` … `0006`, apply in order
-- **Net diff against the base:** 18 files, +376 / −19
+- **Patch series:** 7 commits, `0001` … `0007`, apply in order
+- **Net diff against the base:** 18 files, +484 / −27
 
 ## How CI applies them
 
@@ -27,7 +27,7 @@ before the patches would fetch the wrong LLVM.
 
 The script `ci/apply-rust-patches.sh` (in the recipe repo root) performs all of
 this and exits non-zero if a patch does not apply or if the series does not have
-exactly 6 files.
+exactly 7 files.
 
 ## Patches
 
@@ -39,6 +39,7 @@ exactly 6 files.
 | 0004 | `315dd3f99d9` | `c8871cb8a52` | `Make linking for wasm32-wasip1 work by default` | Adds `-Clink-self-contained=no` for wasi in `src/bootstrap/src/core/builder/cargo.rs`; the remaining target-spec/config changes from the original commit were already upstream or landed in 0002. |
 | 0005 | `f7a223c1c21` | `f5e1d56ab21` | `Disable rpath for lld when requested` | Sets `CMAKE_SKIP_RPATH=ON` when LLD is built without rpath, preserving 1.99.1's separate Linux/Darwin rpath branches. |
 | 0006 | — | `7bbd7e60d99` | `Update cc to 1.2.65 for wasm32-wasip1-threads clang target` | New to this recipe series: bumps `rustc_llvm`'s exact `cc` pin (and the lockfile) from 1.2.16 to 1.2.65, the first release whose target table maps `wasm32-wasip1-threads` to `wasm32-wasip1-threads` instead of deprecated `wasm32-wasi`. Pulls `find-msvc-tools` 0.1.15 and `shlex` 2.0.1, both required by `cc` 1.2.65. |
+| 0007 | — | `7cc730ae66c` | `Find libc++ for wasi hosts in the sysroot's noeh dir` | New to this recipe series: wasi-sdk 34 moved `libc++.a` into the `noeh`/`eh` multilib directories, so clang's `-print-file-name` returned a bare name and bootstrap passed an empty `-L` to `rustc_llvm`. Resolves the multilib from the configured `wasi-root` (preferring `noeh` because LLVM is built with `-fno-exceptions`), falls back to the old flat layout and then to clang, and makes `compiler_file` panic when the result is not absolute or does not exist. |
 
 The original oligamiq series had a sixth commit, `132c6388ad7` (`Update
 comment.txt`), which only updated stale 1.83-era documentation and was dropped
@@ -53,7 +54,8 @@ recipe and fixes the `cc` clang target that broke the wasm host build.
   the main untested combination.
 - **wasi-sdk 34.** The recipe installs wasi-sdk 34 and rewrites the
   toolchain-generated config's `wasi-sdk-*` path to the extracted
-  `rust/wasi-sdk`.
+  `rust/wasi-sdk`. It no longer ships a flat `libc++.a`; patch 0007 resolves
+  the `noeh`/`eh` multilib layout instead.
 - **Main-thread stack.** The 32 MiB `DEFAULT_STACK_SIZE` only applies to a
   spawned rustc thread; on wasm the compiler runs on the main thread, whose
   stack is fixed at link time. Add `-Wl,-z,stack-size=N` if rustc overflows.
@@ -68,4 +70,4 @@ git format-patch --no-signature --numbered -o ../rust_wasm/patches/rust-1.99.1 \
 ```
 
 Keep the file numbering; `ci/apply-rust-patches.sh` applies them sorted and
-fails if the count is not 6.
+fails if the count is not 7.

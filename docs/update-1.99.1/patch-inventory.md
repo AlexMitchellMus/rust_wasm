@@ -14,16 +14,17 @@ Local analysis only. No pushes, no repo creation, no CI. Work area:
   `rustc_minimal.yml` checked out the wasm17 branch and then hard-checked out
   `cf327c2`, silently overriding it.
 - Rebase branch: **`compile_rustc_for_wasm-1.99.1`**, based on tag `1.99.1`
-  (peeled commit `58cf8f9c35b355199727627d07ae34a4e2846d67`), **6 commits**
-  (the five rebased patches plus the new `cc` 1.2.65 fix).
-  Patch 3 (`Update comment.txt`) was dropped as documentation-only.
+  (peeled commit `58cf8f9c35b355199727627d07ae34a4e2846d67`), **7 commits**
+  (the five rebased patches plus the new `cc` 1.2.65 fix and the wasi-sdk 34
+  libc++ fix). Patch 3 (`Update comment.txt`) was dropped as
+  documentation-only.
 - **No commit was blocked**, but one important version decision was needed:
   Rust 1.99.1 pins LLVM `rustc/23.1-2026-07-22`, while YoWASP's wasm LLVM fork
   stops at `llvmorg-22.1.0+wasm` (`97196c8e…`). Rust 1.99.1 accepts LLVM >= 21
   (`src/bootstrap/src/core/build_steps/llvm.rs:651-663`) and has LLVM-22/23
   guards in `rustc_llvm/llvm-wrapper`, so the branch pins the **22.1.0+wasm**
   fork. A 23.x wasm port does not exist yet. This is the main build risk.
-- Net rebased diff vs `1.99.1`: **18 files, +376/−19**.
+- Net rebased diff vs `1.99.1`: **18 files, +484/−27**.
 
 ## Sources and SHAs
 
@@ -171,6 +172,13 @@ Branch: `compile_rustc_for_wasm-1.99.1` (local only, based on `1.99.1`).
 | 5 | `315dd3f99d9` | `c8871cb8a52` | **adapted** | Only `-Clink-self-contained=no` survives; target-spec/config changes were already upstream or done in patch 2. 1 file. |
 | 6 | `f7a223c1c21` | `f5e1d56ab21` | **adapted** | Kept `CMAKE_SKIP_RPATH=ON` in the `else` of the rpath condition while preserving 1.99.1's separate linux/darwin rpaths. 1 file. |
 
+Two commits are new in this recipe and appended after the rebased series:
+
+| Patch | New commit | Subject | What it does |
+|---|---|---|---|
+| 0006 | `7bbd7e60d99` | `Update cc to 1.2.65 for wasm32-wasip1-threads clang target` | Bumps `rustc_llvm`'s exact `cc` pin and the lockfile so `wasm32-wasip1-threads` is no longer mapped to the deprecated `wasm32-wasi` clang target. |
+| 0007 | `7cc730ae66c` | `Find libc++ for wasi hosts in the sysroot's noeh dir` | wasi-sdk 34 moved `libc++.a` into `lib/<triple>/{noeh,eh}/`. Resolves the multilib from the configured `wasi-root` (preferring `noeh` for LLVM's `-fno-exceptions` build), falls back to the flat layout and then clang, and makes `compiler_file` panic on a non-absolute or missing result. |
+
 No patch is blocked. The LLVM 23 → 22.1 version skew is a documented risk, not a
 merge blocker, because 1.99.1 still supports LLVM 22.
 
@@ -201,6 +209,8 @@ merge blocker, because 1.99.1 still supports LLVM 22.
    `wasi-sdk-34.0-x86_64-linux.tar.gz` extracts to `wasi-sdk-34.0-*` and that
    `share/wasi-sysroot` + `bin/clang` exist. Asset names were checked; the
    internal target-prefixed compiler names should be verified in phase B.
+   Patch 0007 resolves the `noeh`/`eh` libc++ layout, since 34 no longer ships
+   a flat `libc++.a`.
 3. **Recipe config overwrite.** `toolchain-for-building-rustc` still writes
    `config.llvm.toml`; the branch's adapted config is only used if that step is
    changed. The recipe currently keeps the generated config and updates its

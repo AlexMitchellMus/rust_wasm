@@ -26,8 +26,8 @@ if [ -z "$patches" ]; then
 fi
 
 count=$(printf '%s\n' "$patches" | wc -l | tr -d ' ')
-if [ "$count" -ne 6 ]; then
-  echo "ERROR: expected exactly 6 patches in $patch_dir, found $count" >&2
+if [ "$count" -ne 7 ]; then
+  echo "ERROR: expected exactly 7 patches in $patch_dir, found $count" >&2
   printf '%s\n' "$patches" >&2
   exit 1
 fi
