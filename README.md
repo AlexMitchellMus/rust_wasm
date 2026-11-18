@@ -30,7 +30,10 @@ This project targets Tier 1 and Tier 2 host platforms. See [Rust Platform Suppor
   [`ci-logs` release](https://github.com/AlexMitchellMus/rust_wasm/releases/tag/ci-logs);
   `rustc.wasm` and the pure sysroot are workflow artifacts kept for 7 days.
   The same logic runs locally:
-  `experiments/cranelift-wasm/ci/build-and-test.sh`.
+  `experiments/cranelift-wasm/ci/build-and-test.sh`. The first green run
+  (2026-11-18) took 45m21s on a 4-core `ubuntu-latest`; sizes, disk/cache use
+  and the macOS/Linux differences are recorded in
+  [`experiments/cranelift-wasm/README.md`](experiments/cranelift-wasm/README.md#ci).
 - [`rustc_llvm_with_lld.yml`](.github/workflows/rustc_llvm_with_lld.yml) builds
   the LLVM/LLD-based compiler and dist jobs. It is **manual only**
   (`workflow_dispatch`) and no longer runs on push.

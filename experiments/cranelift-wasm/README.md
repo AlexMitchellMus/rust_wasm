@@ -104,6 +104,43 @@ cached. The full log is published to the
 [`ci-logs` release](https://github.com/AlexMitchellMus/rust_wasm/releases/tag/ci-logs),
 and `rustc.wasm` plus `sysroot-pure` are workflow artifacts kept for 7 days.
 
+### Green CI run (Linux x86_64)
+
+[Run 44340745478](https://github.com/AlexMitchellMus/rust_wasm/actions/runs/44340745478)
+on `ubuntu-latest` (4 build jobs) passed in **45m21s** (build/test step 41m37s;
+setup 4m35s, rustc.wasm 26m25s, host 3m27s, pure sysroot 2m48s, A.2 check
+4m03s). The runner had **120 GiB free** after the disk-space step and
+**102 GiB** free at the end; `toolchain/` was **18 GB**. The saved caches total
+**1.52 GB** (rustup 803 MB, Cargo registry/git 531 MB, wasi-sdk 180 MB, pinned
+checkouts 4.5 MB), so the 10 GB limit is not close. The workflow artifact
+(`rustc.wasm` + `sysroot-pure`) is **45,552,961 B**.
+
+Compared with the macOS arm64 run above, Linux produced a slightly different
+compiler and plugin (same source, different host toolchain/linker):
+
+| Item | macOS arm64 (local) | Linux x86_64 CI |
+|---|---:|---:|
+| `rustc.wasm` | 143,849,756 B | **143,844,645 B** (SHA-256 `dcc0bcd4…`) |
+| `sysroot-pure` | 56,684 KiB | **56,648 KiB** |
+| plugin (c) | 34,929 B | **34,657 B** |
+| plugin (c) compile inside rustc.wasm | 137.2 ms | **309.6 ms** |
+| Wild link | 26.6 ms | **6.6 ms** |
+| edit-to-result | 149.1 ms | **342.2 ms** |
+| A.2 (e) mean / min / max | 4.70874063666322229 / 1.0 / 8.42724827497044870 | **identical** |
+| A.2 (f) value (200k host calls) | 41.0753225026058786 | **identical** |
+
+The A.2 values are bit-identical; only sizes and timings differ. The Linux
+runner is slower per compile but the pipeline is otherwise the same.
+
+CI iterations (each fix a separate commit):
+
+| Run | Result | Failure → fix |
+|---|---|---|
+| 1 | fail 8m34s | `download-ci-llvm` 404: GitHub Actions bootstrap used `HEAD^1` (a `git am` patch commit) as an upstream SHA. Pass `--ci=false` so the local freshness logic resolves the pinned `b6eeb93` (0b6337c). |
+| 2 | fail 34m33s | The expected `generate-copyright` failure was rejected because Linux's longer backtrace and `run::GenerateCopyright` casing pushed the lowercase name out of a 50-line tail. Match case-insensitively over 200 lines (3d149a7). |
+| 3 | fail 45m55s | `git -C compiler/rustc_codegen_cranelift apply` silently skipped repo-root-relative patch paths ("Skipped patch", exit 0), so a fresh tree had no memory.grow/size or f128 patches and plugin (c) trapped in the bump allocator. Apply from the repo root with `--directory` and assert the patched content exists (7fdd81c). |
+| 4 | **pass 45m21s** | — |
+
 ## What the patch does
 
 cg_clif already lowers Rust to CLIF. The patch makes wasm targets use a
