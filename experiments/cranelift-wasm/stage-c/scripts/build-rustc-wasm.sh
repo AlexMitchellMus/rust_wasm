@@ -93,12 +93,14 @@ ART="$SRC/build/wasm32-wasip1/stage2/bin/rustc.wasm"
 if [ "$status" -ne 0 ]; then
     # The known packaging quirk is the last generate-copyright step. Do not
     # hide a real compile/link failure behind a stale artifact: look at the
-    # tail of the log, where the failing command is reported.
-    tail50=$(tail -n 50 "$LOG")
-    if grep -q 'generate-copyright' <<< "$tail50"; then
+    # tail of the log, where the failing command is reported. CI's backtrace
+    # is longer than macOS's and ends with `run::GenerateCopyright`, so use a
+    # case-insensitive match over a wide tail.
+    tail200=$(tail -n 200 "$LOG")
+    if grep -qi 'generate-copyright' <<< "$tail200"; then
         echo "::warning::x.py install exited $status in generate-copyright; using the rustc.wasm produced before packaging"
     else
-        echo "$tail50" >&2
+        echo "$tail200" >&2
         echo "x.py install failed with status $status; see $LOG" >&2
         exit "$status"
     fi
