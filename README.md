@@ -102,7 +102,38 @@ The build scripts (`build-netbsd-toolchain.sh`, `build-solaris-toolchain.sh`,
 Upstream copyrights are retained by the Rust contributors. Those portions remain
 subject to Rust's [license terms and copyright notices](https://github.com/rust-lang/rust/blob/46e8d20301cb4abe91ab0a4bea43bb085e1d4e4a/COPYRIGHT).
 
-Third-party code and distributed artifacts, including Rust, LLVM, Clang, LLD,
-and their dependencies, remain subject to their respective licenses and
-copyright notices. The licenses of this repository do not relicense those
-components.
+Third-party code and distributed artifacts remain subject to their respective
+licenses and copyright notices. The licenses of this repository do not relicense
+those components. They include:
+
+| Component | License |
+| --- | --- |
+| [Rust](https://github.com/rust-lang/rust) (rustc, the standard library, `rustc_codegen_cranelift`) | MIT OR Apache-2.0 |
+| [Cranelift](https://github.com/bytecodealliance/wasmtime/tree/main/cranelift) and [Wasmtime](https://github.com/bytecodealliance/wasmtime) | Apache-2.0 WITH LLVM-exception |
+| [clif-to-wasm](https://github.com/ryancbuckley/clif-to-wasm) | Apache-2.0 WITH LLVM-exception |
+| [rust-playground-inbrowser](https://github.com/ryancbuckley/rust-playground-inbrowser) rustc-to-wasm patch series | Apache-2.0 |
+| [Wild](https://github.com/wild-linker/wild) | MIT OR Apache-2.0 |
+| [wasi-libc](https://github.com/WebAssembly/wasi-libc) (linked into wasm builds of `std`) | Apache-2.0 WITH LLVM-exception, MIT and others (see its LICENSE files) |
+| [LLVM](https://github.com/llvm/llvm-project), Clang and LLD (the LLVM-based build under `patches/`; build-time only for `experiments/cranelift-wasm/`) | Apache-2.0 WITH LLVM-exception |
+
+### Patch files
+
+Patch files modify the project they apply to, and each one is licensed under
+that project's license, not under this repository's MIT OR Apache-2.0 option.
+This applies to `patches/**` and `experiments/**/patches/**`:
+
+- `patches/rust-*/` and patches against `rustc_codegen_cranelift`: MIT OR Apache-2.0 (Rust).
+- `patches/llvm-*/`: Apache-2.0 WITH LLVM-exception (LLVM).
+- Patches against clif-to-wasm or Cranelift: Apache-2.0 WITH LLVM-exception.
+- Patches against Wild: MIT OR Apache-2.0.
+
+Each patch's header records that it was changed by the contributors to this
+repository. Upstream patch series that the build scripts fetch at a pinned
+revision (such as rust-playground-inbrowser's) are not copied into this
+repository. If they are ever vendored here, their LICENSE and NOTICE files must
+be copied with them.
+
+Builds distributed from this repository (for example a `rustc.wasm` release)
+must include the license texts and notices of every component inside them. A
+modified build must not present itself as the official Rust compiler; describe
+it as built from rustc.
