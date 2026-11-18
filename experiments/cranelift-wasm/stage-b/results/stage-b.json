@@ -1,0 +1,144 @@
+{
+  "rustc_bytes": 143715574,
+  "plugin_bytes": 1066803,
+  "rustc_sha256": "88d30a796bcf734206154f903fec012ffc2f1d5a5c89f240e67d1201b734f089",
+  "module_load_cold_no_cache_ms": [
+    40027.6915,
+    39547.030416,
+    39649.966499999995,
+    40148.851708,
+    39574.683208
+  ],
+  "module_load_cached_ms": [
+    556.924458,
+    557.643291,
+    561.4781250000001,
+    556.5761660000001,
+    557.538417
+  ],
+  "instantiate_ms": [
+    1.418042,
+    1.360625,
+    1.510208,
+    1.358375,
+    1.528042
+  ],
+  "runs": [
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 1.051375,
+      "rustc_total_ms": 117.073125,
+      "link_ms": 6.232125,
+      "compile_ms": 110.84100000000001,
+      "plugin_load_ms": 7.46075,
+      "eval_ms": 0.0005,
+      "end_to_end_ms": 125.58575,
+      "rc": 0,
+      "result": 2.25,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 23,
+          "ms": 6.232125,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.771917,
+      "rustc_total_ms": 90.46654099999999,
+      "link_ms": 5.110834,
+      "compile_ms": 85.355707,
+      "plugin_load_ms": 6.813292000000001,
+      "eval_ms": 0.000833,
+      "end_to_end_ms": 98.052583,
+      "rc": 0,
+      "result": 2.25,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 23,
+          "ms": 5.110834,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 1.1176249999999999,
+      "rustc_total_ms": 94.331791,
+      "link_ms": 5.128833,
+      "compile_ms": 89.202958,
+      "plugin_load_ms": 6.976917,
+      "eval_ms": 0.000583,
+      "end_to_end_ms": 102.426916,
+      "rc": 0,
+      "result": 2.25,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 23,
+          "ms": 5.128833,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.750584,
+      "rustc_total_ms": 89.976292,
+      "link_ms": 6.5418330000000005,
+      "compile_ms": 83.434459,
+      "plugin_load_ms": 6.969,
+      "eval_ms": 0.0005,
+      "end_to_end_ms": 97.696376,
+      "rc": 0,
+      "result": 2.25,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 23,
+          "ms": 6.5418330000000005,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.7911250000000001,
+      "rustc_total_ms": 88.835125,
+      "link_ms": 5.35825,
+      "compile_ms": 83.476875,
+      "plugin_load_ms": 6.78625,
+      "eval_ms": 0.000833,
+      "end_to_end_ms": 96.413333,
+      "rc": 0,
+      "result": 2.25,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 23,
+          "ms": 5.35825,
+          "status": 0
+        }
+      ]
+    }
+  ],
+  "medians": {
+    "compile_ms": 85.355707,
+    "edit_to_result_ms": 98.052583,
+    "eval_ms": 0.000583,
+    "instantiate_ms": 1.418042,
+    "instantiate_warm_ms": 0.7911250000000001,
+    "link_ms": 5.35825,
+    "module_load_cached_ms": 557.538417,
+    "module_load_cold_no_cache_ms": 39649.966499999995,
+    "plugin_load_ms": 6.969,
+    "rustc_total_ms": 90.46654099999999,
+    "warm_module_load_ms": 547.5250000000001
+  },
+  "result": 2.25,
+  "expect": 2.25,
+  "ok": true
+}

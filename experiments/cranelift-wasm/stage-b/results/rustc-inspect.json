@@ -1,0 +1,261 @@
+{
+  "bytes": 143715574,
+  "valid": true,
+  "imports": [
+    [
+      "env",
+      "memory"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "random_get"
+    ],
+    [
+      "playground",
+      "spawn"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "args_sizes_get"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "args_get"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "environ_get"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "environ_sizes_get"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "clock_time_get"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "fd_close"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "fd_fdstat_get"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "fd_fdstat_set_flags"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "fd_filestat_get"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "fd_prestat_get"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "fd_prestat_dir_name"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "fd_read"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "fd_readdir"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "fd_seek"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "fd_write"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "path_create_directory"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "path_filestat_get"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "path_link"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "path_open"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "path_readlink"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "path_remove_directory"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "path_rename"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "path_unlink_file"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "proc_exit"
+    ],
+    [
+      "wasi_snapshot_preview1",
+      "sched_yield"
+    ],
+    [
+      "wasi",
+      "thread-spawn"
+    ]
+  ],
+  "exports": [
+    "memory",
+    "_start",
+    "wasi_thread_start"
+  ],
+  "llvm_raw_occurrences": 589,
+  "llvm_function_names": [
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#0}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#2}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#3}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#4}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#5}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#6}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#7}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#8}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#9}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#10}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#11}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#1}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#12}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#13}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#14}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#15}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#16}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#17}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#18}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#19}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#22}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#23}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#24}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#25}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#26}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#27}",
+    "rustc_codegen_cranelift::intrinsics::llvm_x86::pack_instruction::{closure#0}",
+    "rustc_codegen_cranelift::intrinsics::llvm_x86::codegen_x86_llvm_intrinsic_call::{closure#3}",
+    "rustc_codegen_cranelift::intrinsics::llvm_x86::codegen_x86_llvm_intrinsic_call::{closure#5}",
+    "rustc_codegen_cranelift::intrinsics::llvm_x86::codegen_x86_llvm_intrinsic_call::{closure#6}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#0} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#2} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#3} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_codegen_cranelift::value_and_place::CValue, rustc_codegen_cranelift::value_and_place::CValue)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#4} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_codegen_cranelift::value_and_place::CValue, rustc_codegen_cranelift::value_and_place::CValue)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#5} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#6} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#7} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#8} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#9} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#10} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#11} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#1} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#12} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#13} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#14} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#15} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#16} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#17} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#18} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#19} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#22} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#23} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#24} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#25} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#26} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call::{closure#27} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_x86::codegen_x86_llvm_intrinsic_call::{closure#3} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_x86::codegen_x86_llvm_intrinsic_call::{closure#5} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm_x86::codegen_x86_llvm_intrinsic_call::{closure#6} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "rustc_codegen_cranelift::intrinsics::llvm_aarch64::codegen_aarch64_llvm_intrinsic_call",
+    "rustc_codegen_cranelift::intrinsics::llvm_x86::llvm_add_sub",
+    "rustc_codegen_cranelift::intrinsics::llvm_x86::pack_instruction",
+    "rustc_codegen_cranelift::intrinsics::llvm_x86::codegen_x86_llvm_intrinsic_call",
+    "rustc_codegen_cranelift::intrinsics::llvm_x86::codegen_x86_llvm_intrinsic_call::select4",
+    "rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call::{closure#0}",
+    "rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call::{closure#2}",
+    "rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call::{closure#3}",
+    "rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call::{closure#4}",
+    "rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call::{closure#1}",
+    "<rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call::{closure#0} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call::{closure#2} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call::{closure#3} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call::{closure#4} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "<rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call::{closure#1} as core::ops::function::FnOnce<(&mut rustc_codegen_cranelift::common::FunctionCx, rustc_middle::ty::Ty, rustc_middle::ty::Ty, cranelift_codegen::ir::entities::Value)>>::call_once::{shim:vtable#0}",
+    "rustc_codegen_cranelift::intrinsics::llvm::codegen_llvm_intrinsic_call",
+    "<rustc_const_eval::const_eval::machine::CompileTimeMachine as rustc_const_eval::interpret::machine::Machine>::call_llvm_intrinsic",
+    "<alloc::vec::Vec<rustc_ast::ast::GenericArg> as alloc::vec::spec_from_iter::SpecFromIter<rustc_ast::ast::GenericArg, core::iter::adapters::filter_map::FilterMap<core::slice::iter::Iter<rustc_ast::ast::GenericParam>, rustc_builtin_macros::autodiff::llvm_enzyme::gen_turbofish_expr::{closure#0}>>>::from_iter",
+    "rustc_builtin_macros::autodiff::llvm_enzyme::first_ident",
+    "rustc_builtin_macros::autodiff::llvm_enzyme::expand_with_mode",
+    "rustc_builtin_macros::autodiff::llvm_enzyme::extract_item_info",
+    "rustc_builtin_macros::autodiff::llvm_enzyme::gen_turbofish_expr",
+    "<core::iter::adapters::map::Map<core::slice::iter::Iter<rustc_ast::ast::Param>, rustc_builtin_macros::autodiff::llvm_enzyme::call_autodiff::{closure#1}> as core::iter::traits::iterator::Iterator>::next",
+    "rustc_builtin_macros::autodiff::llvm_enzyme::outer_normal_attr",
+    "rustc_builtin_macros::autodiff::llvm_enzyme::expand_with_mode::same_attribute",
+    "<rustc_builtin_macros::autodiff::llvm_enzyme::expand_forward as rustc_expand::base::MultiItemModifier>::expand",
+    "<rustc_builtin_macros::autodiff::llvm_enzyme::expand_reverse as rustc_expand::base::MultiItemModifier>::expand",
+    "<&mut rustc_builtin_macros::autodiff::llvm_enzyme::gen_turbofish_expr::{closure#0} as core::ops::function::FnMut<(&rustc_ast::ast::GenericParam,)>>::call_mut",
+    "rustc_codegen_ssa::back::apple::add_version_to_llvm_target",
+    "<&rustc_target::spec::LlvmAbi as core::fmt::Display>::fmt",
+    "rustc_codegen_ssa::back::versioned_llvm_target",
+    "rustc_session::options::dbopts::inline_llvm",
+    "rustc_session::options::dbopts::lint_llvm_ir",
+    "rustc_session::options::dbopts::llvm_plugins",
+    "rustc_session::options::dbopts::llvm_writable",
+    "rustc_session::options::dbopts::verify_llvm_ir",
+    "rustc_session::options::dbopts::llvm_time_trace",
+    "rustc_session::options::dbopts::llvm_module_flag",
+    "rustc_session::options::dbopts::time_llvm_passes",
+    "rustc_session::options::dbopts::print_llvm_passes",
+    "rustc_session::options::dbopts::llvm_target_feature",
+    "rustc_session::options::cgopts::llvm_args",
+    "<rustc_feature::unstable::Features>::link_llvm_intrinsics",
+    "core::ptr::drop_glue::<rustc_target::spec::LlvmAbi>",
+    "<rustc_target::spec::LlvmAbi as serde_core::de::Deserialize>::deserialize::<serde_path_to_error::de::Deserializer<&mut serde_json::de::Deserializer<serde_json::read::StrRead>>>",
+    "<rustc_target::spec::LlvmAbi as core::str::traits::FromStr>::from_str",
+    "<rustc_target::spec::LlvmAbi as core::fmt::Display>::fmt",
+    "<rustc_target::spec::LlvmAbi as core::cmp::PartialEq>::eq",
+    "<rustc_target::spec::LlvmAbi as schemars::JsonSchema>::json_schema",
+    "<rustc_target::spec::LlvmAbi as core::fmt::Debug>::fmt",
+    "<rustc_target::spec::LlvmAbi as schemars::JsonSchema>::schema_id",
+    "core::ptr::drop_glue::<core::option::Option<rustc_target::spec::LlvmAbi>>",
+    "<serde_path_to_error::wrap::Wrap<serde_core::de::impls::OptionVisitor<rustc_target::spec::LlvmAbi>> as serde_core::de::Visitor>::visit_some::<&mut serde_json::de::Deserializer<serde_json::read::StrRead>>",
+    "<serde_json::de::SeqAccess<serde_json::read::StrRead> as serde_core::de::SeqAccess>::next_element_seed::<serde_path_to_error::de::TrackedSeed<core::marker::PhantomData<core::option::Option<rustc_target::spec::LlvmAbi>>>>",
+    "<serde_json::de::MapAccess<serde_json::read::StrRead> as serde_core::de::MapAccess>::next_value_seed::<serde_path_to_error::de::TrackedSeed<core::marker::PhantomData<core::option::Option<rustc_target::spec::LlvmAbi>>>>",
+    "<serde_path_to_error::de::TrackedSeed<core::marker::PhantomData<core::option::Option<rustc_target::spec::LlvmAbi>>> as serde_core::de::DeserializeSeed>::deserialize::<&mut serde_json::de::Deserializer<serde_json::read::StrRead>>",
+    "<serde_path_to_error::de::Deserializer<&mut serde_json::de::Deserializer<serde_json::read::StrRead>> as serde_core::de::Deserializer>::deserialize_option::<serde_core::de::impls::OptionVisitor<rustc_target::spec::LlvmAbi>>",
+    "<serde_path_to_error::de::SeqAccess<serde_json::de::SeqAccess<serde_json::read::StrRead>> as serde_core::de::SeqAccess>::next_element_seed::<core::marker::PhantomData<core::option::Option<rustc_target::spec::LlvmAbi>>>",
+    "<serde_path_to_error::de::MapAccess<serde_json::de::MapAccess<serde_json::read::StrRead>> as serde_core::de::MapAccess>::next_value_seed::<core::marker::PhantomData<core::option::Option<rustc_target::spec::LlvmAbi>>>",
+    "rustc_target::spec::targets::i686_pc_windows_gnullvm::target",
+    "rustc_target::spec::targets::x86_64_pc_windows_gnullvm::target",
+    "rustc_target::spec::targets::aarch64_pc_windows_gnullvm::target",
+    "rustc_target::spec::base::windows_gnullvm::opts",
+    "<schemars::generate::SchemaGenerator>::subschema_for::<core::option::Option<rustc_target::spec::LlvmAbi>>",
+    "<core::option::Option<rustc_target::spec::LlvmAbi> as schemars::JsonSchema>::schema_name",
+    "<schemars::generate::SchemaGenerator>::json_schema_internal::<core::option::Option<rustc_target::spec::LlvmAbi>>",
+    "<rustc_target::spec::LlvmAbi as schemars::JsonSchema>::schema_name",
+    "<schemars::generate::SchemaGenerator>::json_schema_internal::<rustc_target::spec::LlvmAbi>",
+    "<core::option::Option<rustc_target::spec::LlvmAbi> as serde_core::de::Deserialize>::deserialize::<serde_path_to_error::de::Deserializer<&mut serde_json::de::Deserializer<serde_json::read::StrRead>>>",
+    "<rustc_abi::TargetDataLayout>::parse_from_llvm_datalayout_string"
+  ],
+  "llvm_imports": [],
+  "llvm_strings_in_data": 381
+}

@@ -1,0 +1,9 @@
+[package]
+name = "a2-harness"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+wasmparser = "0.263"
+wasmtime = { version = "50.0.1", default-features = false, features = ["cranelift", "runtime", "std"] }
