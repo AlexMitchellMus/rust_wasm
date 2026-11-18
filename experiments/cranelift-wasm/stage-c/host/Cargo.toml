@@ -1,0 +1,18 @@
+[package]
+name = "stage-c-host"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "stage-c-host"
+path = "src/main.rs"
+
+[dependencies]
+anyhow = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasmparser = "0.263"
+# Latest stable Wasmtime as of stage C (51.0.0 is still an RC). rustc.wasm no
+# longer spawns a compiler thread, so plain WASI p1 is enough: no wasi-threads.
+wasmtime = { version = "=50.0.2", default-features = false, features = ["cranelift", "runtime", "std", "cache", "anyhow", "threads"] }
+wasmtime-wasi = { version = "=50.0.2", default-features = false, features = ["p1"] }

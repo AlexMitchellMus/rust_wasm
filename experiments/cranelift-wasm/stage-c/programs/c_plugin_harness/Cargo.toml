@@ -1,0 +1,8 @@
+[package]
+name = "c_plugin_harness"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+anyhow = "1"
+wasmtime = { version = "50.0.1", default-features = false, features = ["cranelift", "runtime", "std"] }

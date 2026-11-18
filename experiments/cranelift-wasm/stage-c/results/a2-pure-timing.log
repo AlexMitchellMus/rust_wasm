@@ -1,0 +1,12 @@
+=== e_math
+TIMING rustc_total_ms=84.549 link_ms=-0.000 compile_ms=84.549
+TIMING rustc_total_ms=84.968 link_ms=-0.000 compile_ms=84.968
+TIMING rustc_total_ms=81.929 link_ms=-0.000 compile_ms=81.929
+TIMING rustc_total_ms=81.407 link_ms=-0.000 compile_ms=81.407
+TIMING rustc_total_ms=82.931 link_ms=-0.000 compile_ms=82.931
+=== f_geometry
+TIMING rustc_total_ms=108.027 link_ms=6.709 compile_ms=101.319
+TIMING rustc_total_ms=125.394 link_ms=7.247 compile_ms=118.147
+TIMING rustc_total_ms=118.236 link_ms=6.822 compile_ms=111.414
+TIMING rustc_total_ms=111.046 link_ms=6.521 compile_ms=104.524
+TIMING rustc_total_ms=110.903 link_ms=6.103 compile_ms=104.801

@@ -1,0 +1,95 @@
+From 0ad3adf2eeafab44cab11ee34176ccbd34755849 Mon Sep 17 00:00:00 2001
+From: Stage C <stage-c@example.invalid>
+Date: Wed, 18 Nov 2026 22:44:14 +1030
+Subject: [PATCH] wasm: lower memory.grow and memory.size intrinsics
+
+core::arch::wasm32::{memory_grow,memory_size} resolve to InstanceKind::LlvmIntrinsic with the LLVM names llvm.wasm.memory.grow.i32 and llvm.wasm.memory.size.i32. The generic LLVM intrinsic fallback replaced them with a trap, so a growable allocator could not work.
+
+Lower them to calls to clif-to-wasm's reserved helper names, which clif-to-wasm turns into the wasm memory.grow and memory.size instructions. Both LLVM intrinsics take the memory index as a first argument; stdarch statically requires it to be zero, so only the value operand is forwarded.
+
+Base: upstream 4f78fd3e plus stage-A patches/0001-cg_clif-wasm-backend.patch (that patch does not touch src/intrinsics/llvm.rs).
+---
+ src/intrinsics/llvm.rs | 57 ++++++++++++++++++++++++++++++++++++++++++
+ 1 file changed, 57 insertions(+)
+
+diff --git a/src/intrinsics/llvm.rs b/src/intrinsics/llvm.rs
+index 9ec84d1..ca17378 100644
+--- a/src/intrinsics/llvm.rs
++++ b/src/intrinsics/llvm.rs
+@@ -1,5 +1,8 @@
+ //! Emulate LLVM intrinsics
+ 
++use clif_to_wasm::WasmIntrinsic;
++use cranelift_codegen::ir::{ExtFuncData, ExternalName};
++
+ use crate::intrinsics::*;
+ use crate::prelude::*;
+ 
+@@ -23,6 +26,14 @@ pub(crate) fn codegen_llvm_intrinsic_call<'tcx>(
+             // Nothing to do. This is merely a perf hint.
+         }
+ 
++        "llvm.wasm.memory.grow.i32" => {
++            codegen_wasm_memory_intrinsic(fx, WasmIntrinsic::MemoryGrow, args, ret);
++        }
++
++        "llvm.wasm.memory.size.i32" => {
++            codegen_wasm_memory_intrinsic(fx, WasmIntrinsic::MemorySize, args, ret);
++        }
++
+         _ if intrinsic.starts_with("llvm.ctlz.v") => {
+             intrinsic_args!(fx, args => (a); intrinsic);
+ 
+@@ -88,3 +99,49 @@ pub(crate) fn codegen_llvm_intrinsic_call<'tcx>(
+     let ret_block = fx.get_block(dest);
+     fx.bcx.ins().jump(ret_block, &[]);
+ }
++
++/// Lower `core::arch::wasm32::memory_grow` / `memory_size` to a call to the
++/// reserved function name that `clif-to-wasm` turns into `memory.grow` /
++/// `memory.size`. There is no Cranelift instruction for either.
++fn codegen_wasm_memory_intrinsic<'tcx>(
++    fx: &mut FunctionCx<'_, '_, 'tcx>,
++    intrinsic: WasmIntrinsic,
++    args: &[Spanned<mir::Operand<'tcx>>],
++    ret: CPlace<'tcx>,
++) {
++    // The LLVM intrinsics take the memory index as their first argument (the
++    // stdarch definitions statically assert that it is zero); clif-to-wasm's
++    // helper calls only take the actual value operands.
++    let (params, returns, value_count) = match intrinsic {
++        WasmIntrinsic::MemoryGrow => {
++            (vec![AbiParam::new(types::I32)], vec![AbiParam::new(types::I32)], 1)
++        }
++        WasmIntrinsic::MemorySize => (vec![], vec![AbiParam::new(types::I32)], 0),
++        _ => bug!("unexpected wasm intrinsic {intrinsic:?}"),
++    };
++    if args.len() != value_count + 1 {
++        bug_on_incorrect_arg_count(intrinsic.symbol_name());
++    }
++    let args = &args[1..];
++
++    let sig = fx.bcx.func.import_signature(Signature {
++        call_conv: fx.target_config.default_call_conv,
++        params,
++        returns,
++    });
++    let func = fx.bcx.func.import_function(ExtFuncData {
++        name: ExternalName::testcase(intrinsic.symbol_name()),
++        signature: sig,
++        colocated: false,
++        patchable: false,
++    });
++    if fx.clif_comments.enabled() {
++        fx.add_comment(func, intrinsic.symbol_name().to_string());
++    }
++
++    let args: Vec<Value> =
++        args.iter().map(|arg| codegen_operand(fx, &arg.node).load_scalar(fx)).collect();
++    let call = fx.bcx.ins().call(func, &args);
++    let result = fx.bcx.inst_results(call)[0];
++    ret.write_cvalue(fx, CValue::by_val(result, ret.layout()));
++}
+-- 
+2.54.0 (Apple Git-157)
+

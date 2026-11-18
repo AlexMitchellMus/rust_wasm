@@ -1,0 +1,39 @@
+# Build a rustc that runs on wasm32-wasip1 (no threads) and compiles wasm
+# through rustc_codegen_cranelift + clif-to-wasm. The native stage1 compiler
+# is still built by LLVM; rustc.wasm itself contains only cranelift.
+profile = "compiler"
+change-id = "ignore"
+
+[llvm]
+download-ci-llvm = true
+
+[rust]
+codegen-backends = ["llvm"]
+deny-warnings = false
+llvm-tools = false
+llvm-bitcode-linker = false
+debug = false
+debuginfo-level = 0
+download-rustc = false
+incremental = false
+
+[build]
+docs = false
+extended = false
+tools = []
+host = ["wasm32-wasip1"]
+target = ["wasm32-wasip1"]
+
+[install]
+prefix = "dist"
+sysconfdir = "etc"
+
+[target.wasm32-wasip1]
+wasi-root = "@WASI_SDK@/share/wasi-sysroot"
+linker = "@WASI_SDK@/bin/clang"
+cc = "@WASI_SDK@/bin/clang"
+cxx = "@WASI_SDK@/bin/clang++"
+ar = "@WASI_SDK@/bin/llvm-ar"
+codegen-backends = ["cranelift"]
+# rustc runs on the calling thread, so size the guest stack at link time.
+rustflags = ["-Clink-arg=-Wl,-z,stack-size=33554432"]

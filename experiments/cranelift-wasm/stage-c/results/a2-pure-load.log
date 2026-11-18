@@ -1,0 +1,26 @@
+=== e_math inspect
+INSPECT {"valid":true,"size":62124,"code_bytes":39995,"data_bytes":5865,"data_segments":133,"functions":180,"imports":[],"exports":["memory","alloc_smoke","eval","eval_stats","wasm_alloc","wasm_reset"]}
+=== e_math load
+LOAD fresh 0 17.633875 0.070000
+LOAD fresh 1 16.983500 0.049333
+LOAD fresh 2 16.988542 0.039333
+LOAD fresh 3 17.070083 0.049000
+LOAD fresh 4 17.084417 0.050291
+LOAD reused 0 16.814875 0.043291
+LOAD reused 1 16.578167 0.045250
+LOAD reused 2 17.096208 0.042000
+LOAD reused 3 16.794792 0.041458
+LOAD reused 4 16.696000 0.039834
+=== f_geometry inspect
+INSPECT {"valid":true,"size":34059,"code_bytes":21965,"data_bytes":2542,"data_segments":65,"functions":95,"imports":["nodecraft::dot2","nodecraft::length2","nodecraft::clamp01","nodecraft::scale","nodecraft::mix"],"exports":["memory","alloc_smoke","calls_per_iter","run","wasm_alloc","wasm_reset"]}
+=== f_geometry load
+LOAD fresh 0 10.717375 0.072292
+LOAD fresh 1 9.651084 0.045709
+LOAD fresh 2 9.744917 0.041208
+LOAD fresh 3 9.652375 0.042625
+LOAD fresh 4 9.791334 0.042458
+LOAD reused 0 9.643667 0.042958
+LOAD reused 1 9.452250 0.041666
+LOAD reused 2 9.631333 0.042000
+LOAD reused 3 9.490833 0.041125
+LOAD reused 4 9.516250 0.043250

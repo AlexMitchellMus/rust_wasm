@@ -1,0 +1,14 @@
+   Compiling compiler_builtins v0.1.160 (/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-b/rust/build/aarch64-apple-darwin/stage1/lib/rustlib/src/rust/library/compiler-builtins/compiler-builtins)
+   Compiling core v0.0.0 (/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-b/rust/build/aarch64-apple-darwin/stage1/lib/rustlib/src/rust/library/core)
+   Compiling alloc v0.0.0 (/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-b/rust/build/aarch64-apple-darwin/stage1/lib/rustlib/src/rust/library/alloc)
+   Compiling c_plugin v0.1.0 (/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/stage-c/programs/c_plugin)
+[stage-c host] spawn: /Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/target/wild/release/wild (24 args) -> 0 in 29.6 ms
+    Finished `release` profile [optimized] target(s) in 23.30s
+pure rustc.wasm-built sysroot at /Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-c/sysroot-pure
+total 113368
+-rw-r--r--@ 1 alexandermitchell  staff   191K Nov 18 23:46 liballoc-fd2efbf47db84933.rlib
+-rw-r--r--@ 1 alexandermitchell  staff   8.0M Nov 18 23:46 liballoc-fd2efbf47db84933.rmeta
+-rw-r--r--@ 1 alexandermitchell  staff   754K Nov 18 23:46 libcompiler_builtins-b33d849dcd8e8d4d.rlib
+-rw-r--r--@ 1 alexandermitchell  staff   2.3M Nov 18 23:46 libcompiler_builtins-b33d849dcd8e8d4d.rmeta
+-rw-r--r--@ 1 alexandermitchell  staff   855K Nov 18 23:46 libcore-f7fa3ec276d1a8db.rlib
+-rw-r--r--@ 1 alexandermitchell  staff    43M Nov 18 23:46 libcore-f7fa3ec276d1a8db.rmeta

@@ -1,0 +1,5 @@
+TIMING rustc_total_ms=119.004 link_ms=6.717 compile_ms=112.287
+TIMING rustc_total_ms=131.911 link_ms=6.737 compile_ms=125.174
+TIMING rustc_total_ms=126.406 link_ms=6.910 compile_ms=119.495
+TIMING rustc_total_ms=119.184 link_ms=6.722 compile_ms=112.462
+TIMING rustc_total_ms=119.627 link_ms=6.376 compile_ms=113.250

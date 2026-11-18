@@ -1,0 +1,18 @@
+Stage C pure rustc.wasm-built sysroot, plugins built by rustc.wasm (strict).
+Sizes from a2-harness inspect and a direct Memory-section parse.
+
+c_plugin (growable heap)
+  Wild      34,921 B  code 23,018  data 2,420  memory min 17 pages
+  rust-lld  34,940 B  code 23,018  data 2,420  memory min 17 pages
+
+e_math (growable heap)
+  Wild      62,124 B  code 39,995  data 5,865  memory min 17 pages
+f_geometry (growable heap)
+  Wild      34,059 B  code 21,965  data 2,542  memory min 17 pages
+a_add
+  Wild         267 B
+b_alloc (stage-A fixed 1 MiB .bss heap)
+  Wild    1,139,119 B (stage-A fixed .bss heap; item 3 did not change b_alloc)
+
+Reference: LLVM O2 c_plugin 7,274 B; stage-A cg_clif c_plugin 34,502 B
+(rust-lld, 33-page .bss minimum) and 1,083,560 B (Wild).

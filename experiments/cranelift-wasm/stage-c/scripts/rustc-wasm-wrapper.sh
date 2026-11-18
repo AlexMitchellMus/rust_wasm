@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# Cargo RUSTC wrapper: compile wasm32-unknown-unknown crates with stage-c
+# rustc.wasm under Wasmtime, and everything else (build scripts, proc macros)
+# with the native stage1 compiler from the same rustc source.
+#
+# Set STAGE_C_SYSROOT to add a plugin sysroot to target-crate compiles. With
+# -Zbuild-std, Cargo passes --sysroot itself and no extra sysroot is added.
+set -euo pipefail
+ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)   # experiments/cranelift-wasm
+TOOL="$ROOT/toolchain"
+HOST=${STAGE_C_HOST:-$TOOL/target/stage-c-host/release/stage-c-host}
+RUSTC_WASM=${STAGE_C_RUSTC_WASM:-$TOOL/stage-c/artifacts/rustc.wasm}
+WILD=${STAGE_C_WILD:-$TOOL/target/wild/release/wild}
+STAGE1=${STAGE_C_STAGE1:-$TOOL/stage-b/rust/build/host/stage1/bin/rustc}
+CACHE=${STAGE_C_CACHE:-$TOOL/stage-c/cache}
+SYSROOT=${STAGE_C_SYSROOT:-}
+STD_SRC=${STAGE_C_STD_SRC:-$TOOL/stage-b/rust/build/aarch64-apple-darwin/stage1/lib/rustlib/src/rust}
+REAL_SRC=${STAGE_C_REAL_SRC:-$TOOL/stage-b/rust}
+
+wasm=0
+has_sysroot=0
+mapped=()
+for a in "$@"; do
+    case "$a" in
+        wasm32-unknown-unknown|--target=wasm32-unknown-unknown) wasm=1 ;;
+        --sysroot|--sysroot=*) has_sysroot=1 ;;
+    esac
+    # stage1's lib/rustlib/src/rust is a symlink; WASI path_open refuses to
+    # follow it, so hand rustc.wasm the real checkout path.
+    if [ -n "$STD_SRC" ] && [ -n "$REAL_SRC" ] && [[ "$a" == "$STD_SRC"* ]]; then
+        a="$REAL_SRC${a#"$STD_SRC"}"
+    fi
+    # WASI has no cwd. Cargo passes crate sources as paths relative to the
+    # package directory; make existing relative paths absolute so rustc.wasm
+    # can open them through the host preopen.
+    if [[ "$a" != -* && "$a" != /* && -e "$a" ]]; then
+        a="$PWD/$a"
+    fi
+    mapped+=("$a")
+done
+set -- "${mapped[@]}"
+
+if [ "$wasm" = 1 ]; then
+    args=(raw --rustc "$RUSTC_WASM" --linker "$WILD")
+    [ -n "$CACHE" ] && args+=(--cache-dir "$CACHE")
+    args+=(--)
+    if [ -n "$SYSROOT" ] && [ "$has_sysroot" = 0 ]; then
+        args+=(--sysroot "$SYSROOT")
+    fi
+    args+=("$@")
+    args+=(-Zcodegen-backend=cranelift "-Clinker=$WILD" -Clinker-flavor=wasm-ld)
+    exec "$HOST" "${args[@]}"
+else
+    exec "$STAGE1" "$@"
+fi

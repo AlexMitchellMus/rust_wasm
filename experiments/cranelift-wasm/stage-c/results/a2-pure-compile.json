@@ -1,0 +1,26 @@
+{
+  "e_math": {
+    "warm_s": [
+      2.8409762382507324,
+      0.6161689758300781,
+      0.6658921241760254,
+      0.6807591915130615,
+      0.6747410297393799
+    ],
+    "median": 0.6747410297393799,
+    "wasm": "/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/target/stage-c-pure-wasm/wasm32-unknown-unknown/release/e_math.wasm",
+    "bytes": 62124
+  },
+  "f_geometry": {
+    "warm_s": [
+      0.6117739677429199,
+      0.606072187423706,
+      0.5972580909729004,
+      0.6091461181640625,
+      0.6174461841583252
+    ],
+    "median": 0.6091461181640625,
+    "wasm": "/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/target/stage-c-pure-wasm/wasm32-unknown-unknown/release/f_geometry.wasm",
+    "bytes": 34059
+  }
+}

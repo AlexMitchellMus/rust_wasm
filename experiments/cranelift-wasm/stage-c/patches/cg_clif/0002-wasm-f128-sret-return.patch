@@ -1,0 +1,106 @@
+From edb5eca848207ffe44cebe4f3862c1f871acba46 Mon Sep 17 00:00:00 2001
+From: Stage C <stage-c@example.invalid>
+Date: Wed, 18 Nov 2026 23:29:02 +1030
+Subject: [PATCH] wasm: return f128 through an sret pointer, matching the C ABI
+
+WebAssembly's basic C ABI returns f128 through a hidden sret pointer, and
+rustc's extern "C" ABI on wasm does the same. cg_clif's compiler-generated
+libcall declarations used a direct f128 return instead. compiler_builtins
+both defines and calls f128 libcalls such as __multf3, so when its own Rust
+declaration was seen next to a generated call, module declaration failed with
+"attempt to declare __multf3 with signature ... f128 ... but it was already
+declared with signature (sret ...)".
+
+Treat wasm32/wasm64 like s390x and x86_64 Windows: return f128 indirectly and
+load it from the return slot. Add a compile-only wasm regression example and
+run it from the cg_clif test suite.
+
+This unblocks building core, alloc and compiler_builtins for
+wasm32-unknown-unknown with a wasm-hosted cg_clif, without an LLVM-built
+compiler_builtins.
+---
+ build_system/tests.rs    | 10 ++++++++++
+ example/f128-wasm-abi.rs | 26 ++++++++++++++++++++++++++
+ src/abi/mod.rs           | 12 +++++++++---
+ 3 files changed, 45 insertions(+), 3 deletions(-)
+ create mode 100644 example/f128-wasm-abi.rs
+
+diff --git a/build_system/tests.rs b/build_system/tests.rs
+index 3b9ae26..7088268 100644
+--- a/build_system/tests.rs
++++ b/build_system/tests.rs
+@@ -88,6 +88,16 @@ const fn jit_bin(config: &'static str, source: &'static str, args: &'static str)
+         &[],
+     ),
+     TestCase::build_bin_and_run("aot.float-minmax-pass", "example/float-minmax-pass.rs", &[]),
++    TestCase::custom("aot.f128_wasm_abi", &|runner| {
++        // Compile-only: on wasm this used to fail when a compiler-generated
++        // f128 libcall and a Rust `extern "C"` declaration of the same symbol
++        // disagreed about the sret return. Other targets do not use sret for
++        // f128 here, so the test only applies to wasm.
++        if !runner.target_compiler.target.starts_with("wasm32") {
++            return;
++        }
++        runner.run_rustc(["example/f128-wasm-abi.rs", "--crate-type", "lib"]);
++    }),
+     TestCase::custom("aot.powi_libcall_signature", &|runner| {
+         let mut cmd = runner.rustc_command(["example/powi-libcall-signature.rs"]);
+         let output = cmd.output().unwrap();
+diff --git a/example/f128-wasm-abi.rs b/example/f128-wasm-abi.rs
+new file mode 100644
+index 0000000..f94fd9d
+--- /dev/null
++++ b/example/f128-wasm-abi.rs
+@@ -0,0 +1,26 @@
++//! Regression test for the WebAssembly f128 ABI.
++//!
++//! compiler_builtins defines and calls f128 libcalls such as `__multf3`. On
++//! wasm the basic C ABI returns f128 through a hidden sret pointer, which is
++//! also what rustc's `extern "C"` ABI expects. cg_clif's compiler-generated
++//! libcall declarations used a direct f128 return instead, so compiling
++//! compiler_builtins for wasm failed with an incompatible-signature error.
++//!
++//! Both a compiler-generated libcall (`a * b`) and a Rust declaration of the
++//! same symbol must agree. This is a compile-only test.
++#![no_std]
++#![feature(f128)]
++
++#[unsafe(no_mangle)]
++pub extern "C" fn wasm_f128_mul(a: f128, b: f128) -> f128 {
++    a * b
++}
++
++unsafe extern "C" {
++    fn __multf3(a: f128, b: f128) -> f128;
++}
++
++#[unsafe(no_mangle)]
++pub extern "C" fn wasm_f128_call(a: f128, b: f128) -> f128 {
++    unsafe { __multf3(a, b) }
++}
+diff --git a/src/abi/mod.rs b/src/abi/mod.rs
+index e2446d9..89230e5 100644
+--- a/src/abi/mod.rs
++++ b/src/abi/mod.rs
+@@ -150,9 +150,15 @@ pub(crate) fn lib_call(
+     ) -> Cow<'_, [Value]> {
+         // FIXME any way to reuse the abi adjustment code in rustc_target?
+ 
+-        // Pass and return f128 indirectly on s390x and x86_64 Windows.
+-        let indirect_f128 = self.tcx.sess.target.arch == Arch::S390x
+-            || (self.tcx.sess.target.is_like_windows && self.tcx.sess.target.arch == Arch::X86_64);
++        // Pass and return f128 indirectly on s390x, x86_64 Windows and
++        // WebAssembly. WebAssembly's basic C ABI returns f128 through a hidden
++        // sret pointer, and the sysroot's `extern "C"` declarations (notably
++        // compiler_builtins' libcalls) use that ABI, so a direct f128 return
++        // here would declare the same symbol with an incompatible signature.
++        let indirect_f128 = matches!(
++            self.tcx.sess.target.arch,
++            Arch::S390x | Arch::Wasm32 | Arch::Wasm64
++        ) || (self.tcx.sess.target.is_like_windows && self.tcx.sess.target.arch == Arch::X86_64);
+ 
+         // Pass i128 arguments by-ref on s390x and Windows.
+         let (params, args): (Vec<_>, Cow<'_, [_]>) =
+-- 
+2.54.0 (Apple Git-157)
+

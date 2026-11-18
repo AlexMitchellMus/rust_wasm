@@ -377,3 +377,44 @@ is 3–4.7× LLVM's.
   the build-time stage1/sysroot until a self-hosting stage2 exists; the hybrid
   sysroot shows the next concrete step (rustc.wasm building core/alloc), with
   compiler_builtins/f128 as the remaining piece.
+
+---
+
+# Stage C results (latest Wasmtime, no wasi-threads, pure sysroot, growable heap)
+
+Date: 2026-11-18/19. Stage C is in [`stage-c/`](stage-c/); details are in
+[`stage-c/README.md`](stage-c/README.md) and
+[`stage-c/results.md`](stage-c/results.md). Summary:
+
+* **rustc.wasm** is now `wasm32-wasip1` (non-threads), 143,849,756 B, SHA-256
+  `3c7ca043…c0302f`. The compiler and the codegen coordinator run on the
+  calling thread; the guest stack is 32 MiB via link args. It imports only the
+  26 WASI p1 functions and `playground.spawn` — **no `wasi.thread-spawn`** —
+  and runs on **Wasmtime 50.0.2** with plain WASI p1.
+* **Pure sysroot**: `core`, `alloc` and `compiler_builtins` are all built by
+  rustc.wasm itself (no E0514). The blocking f128 libcall signature conflict
+  is fixed in cg_clif by returning f128 through an sret pointer on wasm.
+  Strict (`CG_CLIF_WASM_STRICT=1`) builds the whole sysroot with no trap stubs.
+* **`memory.size` / `memory.grow`** are implemented via reserved helper calls
+  recognized by clif-to-wasm; plugin (c) now has a growable bump allocator.
+  Plugin (c) is **34,921 B** with Wild and **34,940 B** with rust-lld (was
+  1,083,560 B with Wild because the 1 MiB `.bss` heap was emitted as data).
+* **Numbers on the latest Wasmtime** (`stage-c/results/stage-c.json`, median
+  of 5): module cold compile 38.47 s, cached load 440.5 ms, instantiate
+  0.755 ms, compile inside rustc.wasm 83.6 ms, link 6.46 ms, plugin load
+  9.95 ms, **edit-to-result 101.2 ms**, `eval(1,2,3,4) == 2.25`.
+* **A.2 with the pure sysroot**: (e) 0.120 s compile+link, 17.07 ms load,
+  89.5 ns/point (LLVM 23.0); (f) 0.111 s, 9.75 ms, 2.92 ns/host-call (LLVM
+  3.11). Code size is unchanged from stage B (39,995 / 21,965 B); total size
+  falls to 62,124 / 34,059 B because the heap is no longer in `.bss`.
+* **Still not Rust**: build-time LLVM for the native stage1 rustc (and the CI
+  LLVM used to build it). Nothing in the shipped plugin codegen path uses
+  LLVM. A wasm self-hosting stage is plausible but needs a cg_clif-built
+  wasm32-wasip1 host std, proc-macro/build-script execution under wasm, and a
+  wasm-hosted Wild; it is a multi-week project and still needs a seed
+  compiler, not a blocker for NodeCraft integration.
+* **Patches**: `stage-c/patches/rust/0001-…calling-thread.patch` (rustc),
+  `stage-c/patches/cg_clif/0002-…f128-sret-return.patch`,
+  `stage-c/patches/clif-to-wasm/0001-…memory-grow-and-size.patch` and
+  `stage-c/patches/cg_clif/0001-…memory-grow-and-size.patch`. No Wild patch:
+  the growable heap removes the 1 MiB data segment.

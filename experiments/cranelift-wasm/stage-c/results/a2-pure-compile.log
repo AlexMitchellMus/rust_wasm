@@ -1,0 +1,7 @@
+=== e_math
+=== f_geometry
+f_geometry compiled in 123.6 ms (compile 116.3, link 7.3), module load 456.7 ms -> /Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-c/work-a2/f_geometry.wasm
+f_geometry compiled in 113.2 ms (compile 106.4, link 6.8), module load 452.4 ms -> /Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-c/work-a2/f_geometry.wasm
+f_geometry compiled in 106.1 ms (compile 99.8, link 6.3), module load 439.1 ms -> /Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-c/work-a2/f_geometry.wasm
+f_geometry compiled in 109.0 ms (compile 102.3, link 6.8), module load 436.3 ms -> /Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-c/work-a2/f_geometry.wasm
+f_geometry compiled in 105.1 ms (compile 98.7, link 6.4), module load 443.7 ms -> /Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-c/work-a2/f_geometry.wasm

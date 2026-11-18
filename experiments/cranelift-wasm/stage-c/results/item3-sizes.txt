@@ -1,0 +1,24 @@
+stage A c_plugin, rust-lld (fixed .bss)
+  toolchain/target/measure/clif-lld-o2/c_plugin/wasm32-unknown-unknown/release/c_plugin.wasm
+  total=34502 code=22877 data=2772 sections=[('type', 132), ('import', 23), ('function', 95), ('table', 5), ('memory', 3), ('global', 9), ('export', 30), ('element', 10), ('code', 22877), ('data', 2772), ('custom', 8360), ('custom', 148)]
+
+stage A c_plugin, Wild (fixed .bss)
+  toolchain/target/measure/clif-wild-o2/c_plugin/wasm32-unknown-unknown/release/c_plugin.wasm
+  total=1083560 code=22877 data=1051866 sections=[('type', 132), ('import', 23), ('function', 95), ('table', 5), ('memory', 3), ('global', 9), ('export', 30), ('element', 12), ('code', 22877), ('data', 1051866), ('custom', 8321), ('custom', 148)]
+
+stage C c_plugin, rust-lld (growable)
+  toolchain/target/stage-c/wasm32-unknown-unknown/release/c_plugin.wasm
+  total=34787 code=23162 data=2772 sections=[('type', 132), ('import', 23), ('function', 95), ('table', 5), ('memory', 3), ('global', 9), ('export', 30), ('element', 10), ('code', 23162), ('data', 2772), ('custom', 8360), ('custom', 148)]
+
+stage C c_plugin, Wild (growable)
+  toolchain/target/stage-c-wild/wasm32-unknown-unknown/release/c_plugin.wasm
+  total=35258 code=23162 data=3280 sections=[('type', 132), ('import', 23), ('function', 95), ('table', 5), ('memory', 3), ('global', 9), ('export', 30), ('element', 12), ('code', 23162), ('data', 3280), ('custom', 8321), ('custom', 148)]
+
+stage C mem_grow, rust-lld
+  toolchain/target/stage-c/wasm32-unknown-unknown/release/mem_grow.wasm
+  total=308 code=37 data=None sections=[('type', 16), ('function', 4), ('memory', 3), ('export', 33), ('code', 37), ('custom', 44), ('custom', 148)]
+
+stage C mem_grow, Wild
+  toolchain/target/stage-c-wild/wasm32-unknown-unknown/release/mem_grow.wasm
+  total=339 code=37 data=None sections=[('type', 16), ('function', 4), ('memory', 3), ('global', 9), ('export', 33), ('code', 37), ('custom', 64), ('custom', 148)]
+

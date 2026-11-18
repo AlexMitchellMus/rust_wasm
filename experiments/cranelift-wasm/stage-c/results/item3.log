@@ -1,0 +1,109 @@
+
+== cg_clif (patched) -> /Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/target/cg_clif/release/librustc_codegen_cranelift.dylib
+    Finished `release` profile [optimized] target(s) in 0.02s
+
+== clif-to-wasm tests
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running tests/clif.rs (/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/target/clif-to-wasm/debug/build/clif-to-wasm/9010db2509062843/out/clif-9010db2509062843)
+
+running 2 tests
+test try_call_masks_several_narrow_results ... ok
+test clif_runtests ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.94s
+
+     Running tests/memory.rs (/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/target/clif-to-wasm/debug/build/clif-to-wasm/1b15dc08bd0f56b2/out/memory-1b15dc08bd0f56b2)
+
+running 3 tests
+test wrong_signature_is_rejected ... ok
+test memory64_is_rejected ... ok
+test memory_size_and_grow_instructions ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/object.rs (/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/target/clif-to-wasm/debug/build/clif-to-wasm/d129686b0c9d063d/out/object-d129686b0c9d063d)
+
+running 10 tests
+test invalid_data_alignment_is_an_error ... ok
+test uninitialized_data_is_an_error ... ok
+test data_relocation_out_of_bounds_is_an_error ... ok
+test unlinked_data_pointers_hold_object_addresses ... ok
+test failed_function_definition_can_be_retried ... ok
+test stack_limit_is_imported_when_checked ... ok
+test objects_validate ... ok
+test imports_from_other_modules ... ok
+test function_pointers_without_table_symbol ... ok
+test objects_link_and_run ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+== harness mem_grow_harness
+    Finished `release` profile [optimized] target(s) in 0.04s
+
+== harness c_plugin_harness
+    Finished `release` profile [optimized] target(s) in 0.04s
+
+== mem_grow with lld
+    Finished `release` profile [optimized] target(s) in 0.39s
+
+== c_plugin with lld
+    Finished `release` profile [optimized] target(s) in 0.05s
+
+== mem_grow with wild
+    Finished `release` profile [optimized] target(s) in 0.05s
+
+== c_plugin with wild
+    Finished `release` profile [optimized] target(s) in 0.06s
+
+== mem_grow (lld, 308 bytes)
+ok  initial memory.size: 16
+ok  memory.grow(2) returns the old size: 16
+ok  memory.size after growing by 2: 18
+ok  host memory.size after growing by 2: 18
+ok  host read/write in new page at 0x100000
+ok  guest write/read through a pointer in the new page: 305419896
+ok  host sees the guest write: 305419896
+ok  memory.grow(0) returns the current size: 18
+ok  memory.size after growing by 0: 18
+ok  memory.grow(65536) fails with -1: -1
+ok  memory.size after a failed grow: 18
+ok  host memory.size after a failed grow: 18
+PASS mem_grow: initial=16 pages, grew to 18 pages
+
+== c_plugin (lld, 34787 bytes)
+initial memory: 17 pages
+alignment: in=0x110000 out=0x110020 aligned64=0x110040
+after wasm_alloc: 18 pages
+after eval: 18 pages
+eval rc=0 result=2.25
+second eval: rc=0 result=2.25, memory 18 pages
+PASS c_plugin: eval(1,2,3,4) = 2.25, memory 17 -> 18 -> 18 pages
+eval rc=0 result=2.25 in 1.75µs
+valid: 34787 bytes
+
+== mem_grow (wild, 339 bytes)
+ok  initial memory.size: 16
+ok  memory.grow(2) returns the old size: 16
+ok  memory.size after growing by 2: 18
+ok  host memory.size after growing by 2: 18
+ok  host read/write in new page at 0x100000
+ok  guest write/read through a pointer in the new page: 305419896
+ok  host sees the guest write: 305419896
+ok  memory.grow(0) returns the current size: 18
+ok  memory.size after growing by 0: 18
+ok  memory.grow(65536) fails with -1: -1
+ok  memory.size after a failed grow: 18
+ok  host memory.size after a failed grow: 18
+PASS mem_grow: initial=16 pages, grew to 18 pages
+
+== c_plugin (wild, 35258 bytes)
+initial memory: 17 pages
+alignment: in=0x110000 out=0x110020 aligned64=0x110040
+after wasm_alloc: 18 pages
+after eval: 18 pages
+eval rc=0 result=2.25
+second eval: rc=0 result=2.25, memory 18 pages
+PASS c_plugin: eval(1,2,3,4) = 2.25, memory 17 -> 18 -> 18 pages
+eval rc=0 result=2.25 in 1.625µs
+valid: 35258 bytes
