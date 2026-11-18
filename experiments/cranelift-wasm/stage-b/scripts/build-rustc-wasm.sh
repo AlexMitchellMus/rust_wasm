@@ -126,11 +126,14 @@ NO_LOCAL_PATHS=(--set rust.remap-debuginfo=true
 
 log "rustc.wasm build (host=$host; stage0 LLVM compiles rustc; cg_clif for the wasm target)"
 cd "$SRC"
-./x.py install "${NO_LOCAL_PATHS[@]}" --set build.jobs="$JOBS"
+# --ci=false: on GitHub Actions bootstrap treats HEAD^1 as an upstream commit
+# and download-ci-llvm 404s on our `git am` commits. See the stage-C build
+# script for the same explanation.
+./x.py install --ci=false "${NO_LOCAL_PATHS[@]}" --set build.jobs="$JOBS"
 
 test -f "$SRC/build/wasm32-wasip1-threads/stage2/bin/rustc.wasm"
 log "building the stage1 library for the host + wasm32-wasip1 (wasm proc macros)"
-./x.py build library --stage 1 --host "$host" \
+./x.py build library --ci=false --stage 1 --host "$host" \
     --target "$host,wasm32-wasip1,wasm32-wasip1-threads" "${NO_LOCAL_PATHS[@]}" \
     --set build.jobs="$JOBS"
 

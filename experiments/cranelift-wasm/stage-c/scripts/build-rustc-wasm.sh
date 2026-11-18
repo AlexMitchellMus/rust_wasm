@@ -77,8 +77,14 @@ PY
 
 sed "s|@WASI_SDK@|$WASI_SDK|g" "$ROOT/stage-c/bootstrap.toml" > "$SRC/bootstrap.toml"
 cd "$SRC"
+# On GitHub Actions bootstrap assumes HEAD^1 is an upstream rust-lang/rust
+# commit. Here HEAD is the last of the 23 prior-art commits applied with
+# `git am` (whose hashes differ from upstream because the committer timestamp
+# differs), so download-ci-llvm asks for a nonexistent artifact and 404s.
+# --ci=false uses the local freshness logic, which walks back to the pinned
+# upstream commit b6eeb93 before downloading LLVM.
 set +e
-./x.py install --set build.jobs="$JOBS" 2>&1 | tee "$LOG"
+./x.py install --ci=false --set build.jobs="$JOBS" 2>&1 | tee "$LOG"
 status=${PIPESTATUS[0]}
 set -e
 
