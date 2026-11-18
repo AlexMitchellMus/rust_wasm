@@ -5,6 +5,7 @@
 //! Commands:
 //!   inspect <wasm>
 //!   load <wasm>
+//!   check <e_math.wasm> <f_geometry.wasm>   correctness assertions (no timings)
 //!   bench_math <wasm> <n_points> <reps>
 //!   bench_geom <wasm> <n_iters> <reps>
 
@@ -34,6 +35,12 @@ fn main() -> Result<()> {
     match cmd.as_str() {
         "inspect" => inspect(&args.next().context("wasm path")?),
         "load" => load(&args.next().context("wasm path")?),
+        "check" => {
+            let math = args.next().context("e_math wasm path")?;
+            let geom = args.next().context("f_geometry wasm path")?;
+            check_math(&math)?;
+            check_geom(&geom)
+        }
         "bench_math" => {
             let path = args.next().context("wasm path")?;
             let n: usize = args.next().unwrap_or_else(|| "100000".into()).parse()?;
@@ -167,6 +174,122 @@ fn math_input(n: usize, i: usize) -> f64 {
 
 fn math_transform(x: f64) -> f64 {
     x.sin() * 0.5 + (x * 0.25).cos() + x.abs().sqrt()
+}
+
+fn close(a: f64, b: f64, tol: f64) -> bool {
+    if a == b {
+        return true;
+    }
+    (a - b).abs() <= tol * a.abs().max(b.abs()).max(1.0)
+}
+
+fn assert_close(what: &str, got: f64, want: f64, tol: f64) -> Result<()> {
+    if !close(got, want, tol) {
+        bail!("{what}: got {got:.17e}, want {want:.17e} (tolerance {tol:e})");
+    }
+    Ok(())
+}
+
+/// Compile+run the maths node and compare mean/min/max with a host-side
+/// reference. This is a correctness check, not a timing measurement.
+fn check_math(path: &str) -> Result<()> {
+    let bytes = std::fs::read(path).with_context(|| format!("read {path}"))?;
+    let engine = Engine::default();
+    let module = Module::new(&engine, &bytes).wtc("Module::new")?;
+    let mut store = Store::new(&engine, ());
+    let instance = instantiate(&engine, &module, &mut store)?;
+
+    let memory: Memory = instance.get_memory(&mut store, "memory").context("memory export")?;
+    let alloc = instance
+        .get_typed_func::<(i32, i32), i32>(&mut store, "wasm_alloc")
+        .wtc("wasm_alloc export")?;
+    let eval = instance
+        .get_typed_func::<(i32, i32, i32), i32>(&mut store, "eval")
+        .wtc("eval export")?;
+    let eval_stats = instance
+        .get_typed_func::<(i32, i32, i32), i32>(&mut store, "eval_stats")
+        .wtc("eval_stats export")?;
+
+    let n = 100_000usize;
+    let in_bytes = (n * 8) as i32;
+    let in_ptr = alloc.call(&mut store, (in_bytes, 8)).wtc("alloc input")?;
+    let out_ptr = alloc.call(&mut store, (24, 8)).wtc("alloc stats")?;
+    if in_ptr == 0 || out_ptr == 0 {
+        bail!("wasm_alloc returned null");
+    }
+
+    let mut input = Vec::with_capacity(n * 8);
+    let mut ref_sum = 0.0f64;
+    let mut ref_min = f64::INFINITY;
+    let mut ref_max = f64::NEG_INFINITY;
+    for i in 0..n {
+        let x = math_input(n, i);
+        let y = math_transform(x);
+        ref_sum += y;
+        ref_min = ref_min.min(y);
+        ref_max = ref_max.max(y);
+        input.extend_from_slice(&x.to_le_bytes());
+    }
+    let ref_mean = ref_sum / n as f64;
+    memory.write(&mut store, in_ptr as usize, &input)?;
+
+    let rc = eval_stats
+        .call(&mut store, (in_ptr, n as i32, out_ptr))
+        .wtc("eval_stats")?;
+    if rc != 0 {
+        bail!("e_math eval_stats returned {rc}");
+    }
+    let mut stats = [0u8; 24];
+    memory.read(&store, out_ptr as usize, &mut stats)?;
+    let mean = f64::from_le_bytes(stats[0..8].try_into().unwrap());
+    let min = f64::from_le_bytes(stats[8..16].try_into().unwrap());
+    let max = f64::from_le_bytes(stats[16..24].try_into().unwrap());
+    // libm inside the guest and the host's libm can differ by a few ULP.
+    assert_close("e_math mean", mean, ref_mean, 1e-9)?;
+    assert_close("e_math min", min, ref_min, 1e-9)?;
+    assert_close("e_math max", max, ref_max, 1e-9)?;
+
+    let rc = eval.call(&mut store, (in_ptr, n as i32, out_ptr)).wtc("eval")?;
+    if rc != 0 {
+        bail!("e_math eval returned {rc}");
+    }
+    let mut out = [0u8; 8];
+    memory.read(&store, out_ptr as usize, &mut out)?;
+    let eval_mean = f64::from_le_bytes(out);
+    assert_close("e_math eval mean", eval_mean, ref_mean, 1e-9)?;
+
+    println!(
+        "MATH_CHECK PASS n={n} mean={mean:.17e} min={min:.17e} max={max:.17e} ref_mean={ref_mean:.17e}"
+    );
+    Ok(())
+}
+
+/// Run the geometry node and compare its result with the host-side reference
+/// (every operation in the guest is one of the five imported host calls).
+fn check_geom(path: &str) -> Result<()> {
+    let bytes = std::fs::read(path).with_context(|| format!("read {path}"))?;
+    let engine = Engine::default();
+    let module = Module::new(&engine, &bytes).wtc("Module::new")?;
+    let mut store = Store::new(&engine, ());
+    let instance = instantiate(&engine, &module, &mut store)?;
+
+    let run: TypedFunc<u32, f64> = instance
+        .get_typed_func::<u32, f64>(&mut store, "run")
+        .wtc("run export")?;
+    let cpi: TypedFunc<(), i32> = instance
+        .get_typed_func::<(), i32>(&mut store, "calls_per_iter")
+        .wtc("calls_per_iter export")?;
+    let calls_per_iter = cpi.call(&mut store, ()).wt()?;
+    if calls_per_iter != 5 {
+        bail!("f_geometry reports {calls_per_iter} calls/iter, expected 5");
+    }
+
+    let n = 40_000u32;
+    let got = run.call(&mut store, n).wtc("run")?;
+    let want = geom_ref(n);
+    assert_close("f_geometry run", got, want, 1e-12)?;
+    println!("GEOM_CHECK PASS n={n} value={got:.17e} ref={want:.17e} calls={}", 5u64 * n as u64);
+    Ok(())
 }
 
 fn bench_math(path: &str, n: usize, reps: usize) -> Result<()> {

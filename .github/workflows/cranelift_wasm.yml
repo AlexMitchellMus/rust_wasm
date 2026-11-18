@@ -1,0 +1,160 @@
+name: cranelift_wasm
+
+# Pure-Rust compiler path: build rustc.wasm with cg_clif/clif-to-wasm only,
+# build the plugin sysroot with rustc.wasm itself, run plugin (c) end to end on
+# Wasmtime 50.0.2, assert A.2 (e)/(f) correctness, and prove there is no LLVM
+# inside rustc.wasm. The logic lives in
+# experiments/cranelift-wasm/ci/build-and-test.sh so the same script runs
+# locally on macOS and on this Linux runner.
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'experiments/cranelift-wasm/**'
+      - '.github/workflows/cranelift_wasm.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # The job publishes the full log to the ci-logs release, so it needs write;
+    # the workflow default above stays read-only.
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env:
+      CARGO_TERM_COLOR: always
+      RUST_BACKTRACE: '1'
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - name: install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake pkg-config libclang-dev curl xz-utils zstd
+
+      # Cache only what is slow to download and cheap to restore. The multi-GB
+      # rustc build tree is deliberately not cached.
+      - name: restore rustup toolchains
+        id: cache-rustup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/rustup
+            experiments/cranelift-wasm/toolchain/cargo/bin
+          key: cranelift-wasm-rustup-${{ runner.os }}-${{ runner.arch }}-nightly-2026-10-19-1.99.1-v1
+
+      - name: restore cargo registry and git
+        id: cache-cargo
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/cargo/registry
+            experiments/cranelift-wasm/toolchain/cargo/git
+          key: cranelift-wasm-cargo-${{ runner.os }}-${{ hashFiles('experiments/cranelift-wasm/stage-c/host/Cargo.lock', 'experiments/cranelift-wasm/stage-c/programs/*/Cargo.lock', 'experiments/cranelift-wasm/stage-b/a2/harness/Cargo.lock') }}-v1
+          restore-keys: |
+            cranelift-wasm-cargo-${{ runner.os }}-
+
+      - name: restore pinned source checkouts
+        id: cache-src
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/playground
+            experiments/cranelift-wasm/toolchain/clif-to-wasm
+            experiments/cranelift-wasm/toolchain/wild
+          key: cranelift-wasm-src-${{ runner.os }}-${{ hashFiles('experiments/cranelift-wasm/stage-c/patches/**') }}-f5298630-0e4e0458-fd79578-v1
+
+      - name: restore wasi-sdk
+        id: cache-wasi-sdk
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/stage-b/wasi-sdk-34.0-x86_64-linux
+            experiments/cranelift-wasm/toolchain/stage-b/wasi-sdk
+          key: cranelift-wasm-wasi-sdk-${{ runner.os }}-${{ runner.arch }}-34.0-v1
+
+      - name: build and test
+        run: |
+          bash ci/build-with-diagnostics.sh \
+            "${RUNNER_TEMP}/cranelift-wasm.log" \
+            bash experiments/cranelift-wasm/ci/build-and-test.sh
+
+      # The full log is published even when the build fails, and the log
+      # helper above adds ::error annotations for the interesting lines.
+      - name: publish build log
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          bash ci/publish-build-log.sh \
+            "${RUNNER_TEMP}/cranelift-wasm.log" cranelift-wasm
+
+      - name: save rustup toolchains
+        if: success() && steps.cache-rustup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/rustup
+            experiments/cranelift-wasm/toolchain/cargo/bin
+          key: cranelift-wasm-rustup-${{ runner.os }}-${{ runner.arch }}-nightly-2026-10-19-1.99.1-v1
+
+      - name: save cargo registry and git
+        if: success() && steps.cache-cargo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/cargo/registry
+            experiments/cranelift-wasm/toolchain/cargo/git
+          key: cranelift-wasm-cargo-${{ runner.os }}-${{ hashFiles('experiments/cranelift-wasm/stage-c/host/Cargo.lock', 'experiments/cranelift-wasm/stage-c/programs/*/Cargo.lock', 'experiments/cranelift-wasm/stage-b/a2/harness/Cargo.lock') }}-v1
+
+      - name: save pinned source checkouts
+        if: success() && steps.cache-src.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/playground
+            experiments/cranelift-wasm/toolchain/clif-to-wasm
+            experiments/cranelift-wasm/toolchain/wild
+          key: cranelift-wasm-src-${{ runner.os }}-${{ hashFiles('experiments/cranelift-wasm/stage-c/patches/**') }}-f5298630-0e4e0458-fd79578-v1
+
+      - name: save wasi-sdk
+        if: success() && steps.cache-wasi-sdk.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/stage-b/wasi-sdk-34.0-x86_64-linux
+            experiments/cranelift-wasm/toolchain/stage-b/wasi-sdk
+          key: cranelift-wasm-wasi-sdk-${{ runner.os }}-${{ runner.arch }}-34.0-v1
+
+      - name: upload rustc.wasm and pure sysroot
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: cranelift-wasm-rustc-wasm-${{ github.run_id }}
+          path: |
+            experiments/cranelift-wasm/toolchain/stage-c/artifacts/rustc.wasm
+            experiments/cranelift-wasm/toolchain/stage-c/sysroot-pure
+          if-no-files-found: warn
+          retention-days: 7
+          compression-level: 6

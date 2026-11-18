@@ -23,10 +23,32 @@ export RUSTUP_TOOLCHAIN=nightly-2026-10-19
 
 RUST_COMMIT=b6eeb93c992027a03e1fd120b6652546396b142c
 PLAYGROUND_REV=f5298630dda0f2dc2b44f6ae1b54add7a77d8316
-WASI_SDK=wasi-sdk-34.0-arm64-macos
+
+# wasi-sdk publishes one archive per host. The spike was developed on Apple
+# silicon; CI is x86_64 Linux, so pick the archive instead of hardcoding macOS.
+case "$(uname -s)-$(uname -m)" in
+    Darwin-arm64)          WASI_SDK=wasi-sdk-34.0-arm64-macos ;;
+    Darwin-x86_64)         WASI_SDK=wasi-sdk-34.0-x86_64-macos ;;
+    Linux-x86_64|Linux-amd64) WASI_SDK=wasi-sdk-34.0-x86_64-linux ;;
+    Linux-aarch64|Linux-arm64) WASI_SDK=wasi-sdk-34.0-arm64-linux ;;
+    *)
+        echo "unsupported host for wasi-sdk: $(uname -s) $(uname -m)" >&2
+        exit 1
+        ;;
+esac
 WASI_SDK_URL="https://github.com/WebAssembly/wasi-sdk/releases/download/wasi-sdk-34/$WASI_SDK.tar.gz"
 
 log() { printf '\n== %s\n' "$*" >&2; }
+jobs() {
+    if [ -n "${BUILD_JOBS:-}" ]; then
+        printf '%s' "$BUILD_JOBS"
+    elif command -v nproc >/dev/null 2>&1; then
+        nproc
+    else
+        sysctl -n hw.ncpu
+    fi
+}
+JOBS=$(jobs)
 
 mkdir -p "$WORK"
 
@@ -54,8 +76,11 @@ git -C "$SRC" cat-file -e "$RUST_COMMIT^{commit}" 2>/dev/null || {
     echo "rust checkout does not contain $RUST_COMMIT" >&2; exit 1; }
 
 # Apply the patch series once. `git am` leaves the last patch as HEAD, so look
-# for one of the patch subjects instead of comparing a count.
-if [ "$(git -C "$SRC" log -1 --format=%s)" != 'cg_clif: update to clif-to-wasm 0.3.0' ]; then
+# for one of the patch subjects instead of comparing a count. Later stages add
+# commits on top, so search the history rather than only HEAD. Use --grep with
+# a command substitution, not `git log | grep -q`: under `pipefail`, grep
+# exiting early can make git log fail with SIGPIPE and re-apply the series.
+if [ -z "$(git -C "$SRC" log --format=%s -n 60 --grep='^cg_clif: update to clif-to-wasm 0\.3\.0$')" ]; then
     log "applying the prior-art rust patch series (23 patches)"
     git -C "$SRC" config user.name playground
     git -C "$SRC" config user.email playground@localhost
@@ -82,6 +107,13 @@ PY
 grep -q "$WASI_SDK_PATH/share/wasi-sysroot" "$SRC/bootstrap.toml" || {
     echo "failed to rewrite bootstrap.toml wasi-sdk paths" >&2; exit 1; }
 
+# setup-toolchain.sh uses this to fetch and patch the pinned sources without
+# paying for the stage-B rustc.wasm build; stage C then builds wasm32-wasip1.
+if [ "${SETUP_ONLY:-0}" = 1 ]; then
+    log "setup only: rust source, prior-art patches and wasi-sdk are ready"
+    exit 0
+fi
+
 host=$(rustc +"$RUSTUP_TOOLCHAIN" -vV | sed -n 's/^host: //p')
 # Keep paths out of the shipped artifacts. The two x.py runs must agree, or the
 # second builds a second stage1 compiler.
@@ -94,13 +126,13 @@ NO_LOCAL_PATHS=(--set rust.remap-debuginfo=true
 
 log "rustc.wasm build (host=$host; stage0 LLVM compiles rustc; cg_clif for the wasm target)"
 cd "$SRC"
-./x.py install "${NO_LOCAL_PATHS[@]}" --set build.jobs="${BUILD_JOBS:-12}"
+./x.py install "${NO_LOCAL_PATHS[@]}" --set build.jobs="$JOBS"
 
 test -f "$SRC/build/wasm32-wasip1-threads/stage2/bin/rustc.wasm"
 log "building the stage1 library for the host + wasm32-wasip1 (wasm proc macros)"
 ./x.py build library --stage 1 --host "$host" \
     --target "$host,wasm32-wasip1,wasm32-wasip1-threads" "${NO_LOCAL_PATHS[@]}" \
-    --set build.jobs="${BUILD_JOBS:-12}"
+    --set build.jobs="$JOBS"
 
 log "artifacts"
 ls -lh "$SRC/build/wasm32-wasip1-threads/stage2/bin/rustc.wasm"

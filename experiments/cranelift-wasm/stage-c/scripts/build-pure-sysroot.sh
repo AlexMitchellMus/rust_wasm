@@ -9,14 +9,23 @@ SYS="$TOOL/stage-c/sysroot-pure"
 TARGET="$TOOL/target/stage-c-sysroot"
 export RUSTUP_HOME="${RUSTUP_HOME:-$TOOL/rustup}"
 export CARGO_HOME="${CARGO_HOME:-$TOOL/cargo}"
-export PATH="$CARGO_HOME/bin:$RUSTUP_HOME/toolchains/nightly-2026-10-19-aarch64-apple-darwin/lib/rustlib/aarch64-apple-darwin/bin:$PATH"
 export RUSTUP_TOOLCHAIN=nightly-2026-10-19
 export RUSTC="$ROOT/stage-c/scripts/rustc-wasm-wrapper.sh"
 export RUSTC_BOOTSTRAP=1
 # Turn clif-to-wasm's "replace an unsupported function with a trap" into an
 # error: the shipped sysroot must not contain trap stubs.
 export CG_CLIF_WASM_STRICT="${CG_CLIF_WASM_STRICT:-1}"
+
+# compiler_builtins' build script invokes rust-objcopy from the rustup
+# llvm-tools component. The toolchain directory is host-specific.
+STAGE1="${STAGE_C_STAGE1:-$TOOL/stage-b/rust/build/host/stage1/bin/rustc}"
+[ -x "$STAGE1" ] || { echo "missing native stage1 rustc: $STAGE1" >&2; exit 1; }
+HOST=$("$STAGE1" -vV | sed -n 's/^host: //p')
+export STAGE_C_HOST_TRIPLE="$HOST"
+export PATH="$RUSTUP_HOME/toolchains/nightly-2026-10-19-$HOST/lib/rustlib/$HOST/bin:$CARGO_HOME/bin:$PATH"
+
 unset STAGE_C_SYSROOT || true
+rm -rf "$SYS"
 mkdir -p "$SYS/lib/rustlib/wasm32-unknown-unknown/lib"
 cd "$ROOT/stage-c/programs/c_plugin"
 RUSTFLAGS="-Cpanic=abort" CARGO_TARGET_DIR="$TARGET" \

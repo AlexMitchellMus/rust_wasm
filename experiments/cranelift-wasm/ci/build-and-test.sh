@@ -1,0 +1,99 @@
+#!/usr/bin/env bash
+# One entry point for the pure-Rust cranelift-wasm CI (and for local runs on
+# macOS/Linux):
+#
+#   1. fetch the pinned toolchain inputs (rustup, rust + prior-art patches,
+#      clif-to-wasm, Wild, wasi-sdk)
+#   2. build stage-C rustc.wasm (wasm32-wasip1, cg_clif only, single-threaded)
+#   3. build the Wasmtime 50.0.2 host (the sysroot builder executes rustc.wasm)
+#   4. build core/alloc/compiler_builtins with rustc.wasm itself (strict)
+#   5. run plugin (c) end to end and assert eval(1,2,3,4) == 2.25
+#   6. build plugins (a)-(f) and assert A.2 (e)/(f) correctness
+#   7. audit rustc.wasm for LLVM imports/symbols
+#
+# Logs are teed by the workflow through ci/build-with-diagnostics.sh; the
+# individual build scripts also keep their own logs under stage-c/results/.
+set -euo pipefail
+CI_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+ROOT=$(cd "$CI_DIR/.." && pwd)          # experiments/cranelift-wasm
+TOOL="$ROOT/toolchain"
+RUSTC_WASM="$TOOL/stage-c/artifacts/rustc.wasm"
+SYSROOT="$TOOL/stage-c/sysroot-pure"
+HOST_BIN="$TOOL/target/stage-c-host/release/stage-c-host"
+START=$(date +%s)
+CURRENT_STEP=setup
+
+step() {
+    CURRENT_STEP=$1
+    printf '\n== [%s] %s\n' "$(date -u +%H:%M:%S)" "$1" >&2
+}
+elapsed() { echo $(( $(date +%s) - START )); }
+free_gb() {
+    df -Pk "$1" | awk 'NR==2 {printf "%d", $4/1024/1024}'
+}
+sha256_file() {
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$1" | cut -d' ' -f1
+    else
+        shasum -a 256 "$1" | cut -d' ' -f1
+    fi
+}
+on_err() {
+    local status=$?
+    echo "::error title=cranelift-wasm CI failed::step '${CURRENT_STEP}' exited ${status} after $(elapsed)s; the full log is published to the ci-logs release" >&2
+    exit "$status"
+}
+trap on_err ERR
+
+JOBS=${BUILD_JOBS:-$(
+    if command -v nproc >/dev/null 2>&1; then nproc; else sysctl -n hw.ncpu; fi
+)}
+export BUILD_JOBS="$JOBS"
+export CARGO_BUILD_JOBS="$JOBS"
+export CARGO_TERM_COLOR=always
+
+if [ "$(free_gb "$ROOT")" -lt 15 ]; then
+    echo "::error title=not enough disk::only $(free_gb "$ROOT") GiB free under $ROOT; stopping before the build" >&2
+    exit 1
+fi
+echo "budget: $(free_gb "$ROOT") GiB free, $JOBS build jobs, $(uname -s) $(uname -m)"
+
+step "setup pinned toolchain and sources"
+"$CI_DIR/setup-toolchain.sh"
+
+step "build stage-C rustc.wasm (wasm32-wasip1, cranelift-only)"
+"$ROOT/stage-c/scripts/build-rustc-wasm.sh"
+
+step "build Wasmtime 50.0.2 host"
+"$ROOT/stage-c/scripts/build-host.sh"
+
+step "build pure sysroot with rustc.wasm (strict)"
+"$ROOT/stage-c/scripts/build-pure-sysroot.sh"
+
+step "plugin (c): compile, link, eval"
+"$ROOT/stage-c/run.sh" check
+
+step "build plugins (a), (b), (c), (e), (f) with rustc.wasm"
+"$ROOT/stage-c/run.sh" plugins
+
+step "A.2 (e)/(f) correctness assertions"
+"$ROOT/stage-c/run.sh" a2check
+
+step "no-LLVM audit"
+mkdir -p "$TOOL/stage-c/work"
+"$HOST_BIN" inspect --wasm "$RUSTC_WASM" > "$TOOL/stage-c/work/rustc-inspect.json"
+python3 "$CI_DIR/audit-llvm.py" "$TOOL/stage-c/work/rustc-inspect.json" "$RUSTC_WASM"
+
+step "sizes and checksums"
+RUSTC_BYTES=$(wc -c < "$RUSTC_WASM" | tr -d ' ')
+RUSTC_SHA=$(sha256_file "$RUSTC_WASM")
+SYS_BYTES=$(du -sk "$SYSROOT" | cut -f1)
+PLUGIN_BYTES=$(wc -c < "$TOOL/stage-c/work/c_plugin.wasm" | tr -d ' ')
+echo "rustc.wasm: ${RUSTC_BYTES} bytes, sha256 ${RUSTC_SHA}"
+echo "sysroot-pure: ${SYS_BYTES} KiB"
+echo "plugin (c): ${PLUGIN_BYTES} bytes"
+echo "toolchain dir: $(du -sh "$TOOL" | cut -f1); free disk: $(free_gb "$ROOT") GiB"
+
+trap - ERR
+TOTAL=$(elapsed)
+echo "::notice title=cranelift-wasm CI passed::rustc.wasm ${RUSTC_BYTES} B sha256 ${RUSTC_SHA:0:16}...; plugin (c) eval(1,2,3,4)=2.25; A.2 (e)/(f) checks passed; no LLVM inside rustc.wasm; ${TOTAL}s total; $(free_gb "$ROOT") GiB free"

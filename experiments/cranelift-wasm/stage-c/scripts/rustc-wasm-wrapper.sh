@@ -8,14 +8,28 @@
 set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)   # experiments/cranelift-wasm
 TOOL="$ROOT/toolchain"
-HOST=${STAGE_C_HOST:-$TOOL/target/stage-c-host/release/stage-c-host}
+STAGE1=${STAGE_C_STAGE1:-$TOOL/stage-b/rust/build/host/stage1/bin/rustc}
+HOST_BIN=${STAGE_C_HOST:-$TOOL/target/stage-c-host/release/stage-c-host}
 RUSTC_WASM=${STAGE_C_RUSTC_WASM:-$TOOL/stage-c/artifacts/rustc.wasm}
 WILD=${STAGE_C_WILD:-$TOOL/target/wild/release/wild}
-STAGE1=${STAGE_C_STAGE1:-$TOOL/stage-b/rust/build/host/stage1/bin/rustc}
 CACHE=${STAGE_C_CACHE:-$TOOL/stage-c/cache}
 SYSROOT=${STAGE_C_SYSROOT:-}
-STD_SRC=${STAGE_C_STD_SRC:-$TOOL/stage-b/rust/build/aarch64-apple-darwin/stage1/lib/rustlib/src/rust}
 REAL_SRC=${STAGE_C_REAL_SRC:-$TOOL/stage-b/rust}
+
+# The stage1 sysroot contains rust-src as a symlink under the build host's
+# triple. Do not hardcode aarch64-apple-darwin: CI is x86_64 Linux.
+if [ -n "${STAGE_C_HOST_TRIPLE:-}" ]; then
+    HOST_TRIPLE=$STAGE_C_HOST_TRIPLE
+elif [ -x "$STAGE1" ]; then
+    HOST_TRIPLE=$("$STAGE1" -vV | sed -n 's/^host: //p')
+else
+    HOST_TRIPLE=
+fi
+STD_SRC=${STAGE_C_STD_SRC:-}
+if [ -z "$STD_SRC" ] && [ -n "$HOST_TRIPLE" ]; then
+    STD_SRC="$TOOL/stage-b/rust/build/$HOST_TRIPLE/stage1/lib/rustlib/src/rust"
+fi
+[ -n "$STD_SRC" ] && [ -e "$STD_SRC" ] || STD_SRC=
 
 wasm=0
 has_sysroot=0
@@ -49,7 +63,7 @@ if [ "$wasm" = 1 ]; then
     fi
     args+=("$@")
     args+=(-Zcodegen-backend=cranelift "-Clinker=$WILD" -Clinker-flavor=wasm-ld)
-    exec "$HOST" "${args[@]}"
+    exec "$HOST_BIN" "${args[@]}"
 else
     exec "$STAGE1" "$@"
 fi

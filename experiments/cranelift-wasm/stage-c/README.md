@@ -58,6 +58,7 @@ stage-c/
 ├── run.sh                          # plugins/check/bench/a2
 ├── host/                           # Wasmtime 50.0.2 p1 host (no wasi-threads)
 ├── scripts/
+│   ├── build-host.sh               # Wasmtime 50.0.2 p1 host
 │   ├── build-rustc-wasm.sh         # apply stage-C patches + x.py install
 │   ├── build-pure-sysroot.sh       # core/alloc/compiler_builtins via rustc.wasm
 │   ├── rustc-wasm-wrapper.sh       # Cargo RUSTC wrapper
@@ -78,20 +79,26 @@ stage-c/
 # 1. Apply the stage-C patches and build rustc.wasm (~3.5 min incremental).
 stage-c/scripts/build-rustc-wasm.sh
 
-# 2. Build the plugin sysroot with rustc.wasm itself (strict, no trap stubs).
+# 2. Build the stage-C Wasmtime 50.0.2 host. The sysroot builder needs it,
+#    because rustc.wasm is executed through this host while Cargo compiles
+#    core/alloc/compiler_builtins.
+stage-c/scripts/build-host.sh
+
+# 3. Build the plugin sysroot with rustc.wasm itself (strict, no trap stubs).
 CG_CLIF_WASM_STRICT=1 stage-c/scripts/build-pure-sysroot.sh
 
-# 3. Build plugins with rustc.wasm, link with Wild, eval (c).
+# 4. Build plugins with rustc.wasm, link with Wild, eval (c).
 stage-c/run.sh plugins
 stage-c/run.sh check
+stage-c/run.sh a2check   # A.2 (e)/(f) correctness, no timing assertions
 
-# 4. Stage-B table on Wasmtime 50.0.2 (median of 5).
+# 5. Stage-B table on Wasmtime 50.0.2 (median of 5).
 stage-c/run.sh bench
 
-# 5. A.2 load/run measurements.
+# 6. A.2 load/run measurements.
 stage-c/run.sh a2
 
-# 6. Item-3 regression suite (clif-to-wasm tests + mem_grow + plugin).
+# 7. Item-3 regression suite (clif-to-wasm tests + mem_grow + plugin).
 stage-c/scripts/run-item3.sh all
 ```
 

@@ -73,6 +73,37 @@ also builds `core`, `alloc` and `compiler_builtins` **with cg_clif** (~6.2–6.6
 A plugin build against a prebuilt pure-Rust sysroot is 0.15–0.78 s cold and
 0.08–0.14 s warm; see `results.md`. The sysroot is built once and shipped.
 
+## CI
+
+[`.github/workflows/cranelift_wasm.yml`](../../.github/workflows/cranelift_wasm.yml)
+runs on every push to `main` that touches `experiments/cranelift-wasm/**` (and
+on `workflow_dispatch`). It is deliberately thin: one job on `ubuntu-latest`
+runs [`ci/build-and-test.sh`](ci/build-and-test.sh), which
+
+1. installs the pinned isolated rustup (`nightly-2026-10-19` plus `1.99.1` for
+   Wild) and fetches the pinned rust/clif-to-wasm/Wild/wasi-sdk inputs;
+2. builds stage-C `rustc.wasm` (`wasm32-wasip1`, cg_clif only);
+3. builds the Wasmtime 50.0.2 host and the pure `core`/`alloc`/
+   `compiler_builtins` sysroot with `rustc.wasm` itself (`CG_CLIF_WASM_STRICT=1`);
+4. runs plugin (c) end to end and asserts `eval(1,2,3,4) == 2.25`;
+5. builds plugins (a), (b), (c), (e), (f) and runs the A.2 (e)/(f)
+   correctness assertions (values vs a host-side reference, not timings);
+6. audits `rustc.wasm` for LLVM imports, symbol names and marker strings.
+
+The same command runs locally on macOS arm64:
+
+```sh
+experiments/cranelift-wasm/ci/build-and-test.sh
+```
+
+The scripts pick wasi-sdk and rustup by OS/arch, derive the stage1 host triple
+instead of assuming `aarch64-apple-darwin`, and use `nproc` when available (CI)
+or `sysctl` (macOS). GitHub caches the rustup toolchain, Cargo registry/git and
+the pinned checkouts, keyed on the pins; the multi-GB rustc build tree is not
+cached. The full log is published to the
+[`ci-logs` release](https://github.com/AlexMitchellMus/rust_wasm/releases/tag/ci-logs),
+and `rustc.wasm` plus `sysroot-pure` are workflow artifacts kept for 7 days.
+
 ## What the patch does
 
 cg_clif already lowers Rust to CLIF. The patch makes wasm targets use a

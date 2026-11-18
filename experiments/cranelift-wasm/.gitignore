@@ -8,3 +8,6 @@
 *.wasm
 *.o
 *.cwasm
+
+# Local/CI stage-C build log (the workflow publishes its own full log).
+/stage-c/results/build-rustc-wasm.log
