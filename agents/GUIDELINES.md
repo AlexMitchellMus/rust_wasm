@@ -1,6 +1,6 @@
 # Guidelines
 
-Conventions for every change to rust_wasm, by people and AI agents alike.
+Conventions for every change to CogWasm, by people and AI agents alike.
 The [review scan](skills/anti-pattern-review.md) checks the mechanical parts;
 reviewers check the rest.
 

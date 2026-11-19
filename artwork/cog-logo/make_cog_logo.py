@@ -1,7 +1,7 @@
-"""rust_wasm logo: an orange gear whose single spoke reaches into the WebAssembly tag square.
+"""CogWasm logo: an orange gear whose single spoke reaches into the WebAssembly tag square.
 
 Copyright (c) 2026 AlexMitchellMus. All rights reserved.
-This script and the artwork it generates belong to the rust_wasm project and are
+This script and the artwork it generates belong to the CogWasm project and are
 not covered by the repository's MIT or Apache-2.0 licence. See ARTWORK.md for
 the design, permitted use and attribution (the tag square follows the
 WebAssembly logo by Carlos Baraza).
@@ -379,13 +379,13 @@ def silhouette_svg(ink):
                          f'<g fill="{ink}">{tops}</g>')
 
 
-NOTICE = ('Copyright (c) 2026 AlexMitchellMus. All rights reserved. rust_wasm logo; '
-          'see artwork/cog-logo/ARTWORK.md in the rust_wasm repository for permitted use.')
+NOTICE = ('Copyright (c) 2026 AlexMitchellMus. All rights reserved. CogWasm logo; '
+          'see artwork/cog-logo/ARTWORK.md in the CogWasm repository for permitted use.')
 
 
 def wrap(defs, body):
     return (f'<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {SIZE} {SIZE}" width="{SIZE}" '
-            f'height="{SIZE}"><title>rust_wasm</title><desc>{NOTICE}</desc>'
+            f'height="{SIZE}"><title>CogWasm</title><desc>{NOTICE}</desc>'
             f'<defs>{defs}</defs>{body}</svg>\n')
 
 

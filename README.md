@@ -1,14 +1,14 @@
 <p align="center">
-  <img src="artwork/cog-logo/logo-colour-dark.svg" width="180" alt="rust_wasm icon: an orange gear whose spoke reaches into the WebAssembly tag square">
+  <img src="artwork/cog-logo/logo-colour-dark.svg" width="180" alt="CogWasm icon: an orange gear whose spoke reaches into the WebAssembly tag square">
 </p>
 
-<h1 align="center">rust_wasm</h1>
+<h1 align="center">CogWasm</h1>
 
-<p align="center"><b>The Rust compiler, running as WebAssembly, written in Rust all the way down.</b></p>
+<p align="center"><b>A Rust compiler, built from rustc, that runs as WebAssembly with no LLVM inside — Cranelift codegen, clif-to-wasm and the Wild linker. Compile Rust to Wasm anywhere a Wasm runtime runs, nothing to install.</b></p>
 
 ## Goal
 
-rust_wasm builds **rustc as a WebAssembly module that compiles Rust to
+CogWasm builds **rustc as a WebAssembly module that compiles Rust to
 WebAssembly with no LLVM inside**. The whole compile pipeline is Rust:
 
 ```text
@@ -122,7 +122,8 @@ projects in [`CONTRIBUTING.md`](CONTRIBUTING.md).
 
 ## Credits
 
-This repository started as [oligamiq/rust_wasm](https://github.com/oligamiq/rust_wasm),
+CogWasm continues [oligamiq/rust_wasm](https://github.com/oligamiq/rust_wasm)
+(via [AlexMitchellMus/rust_wasm](https://github.com/AlexMitchellMus/rust_wasm)),
 which built rustc **with** LLVM for WebAssembly; that build is kept below as
 the legacy path. The pure-Rust compiler stands on bjorn3's rustc-to-wasm and
 Cranelift work, Ryan Buckley's clif-to-wasm and in-browser playground, the Wild
@@ -141,7 +142,7 @@ AlexMitchellMus, all rights reserved; see that file for permitted use.
   `rustc.wasm` itself, runs plugin (c) end to end on Wasmtime 50.0.2 and
   asserts `eval(1,2,3,4) == 2.25`, checks A.2 (e)/(f) correctness, and audits
   `rustc.wasm` for LLVM imports/symbols. The full build log is published to the
-  [`ci-logs` release](https://github.com/AlexMitchellMus/rust_wasm/releases/tag/ci-logs);
+  [`ci-logs` release](https://github.com/TeamNodeCraft/CogWasm/releases/tag/ci-logs);
   `rustc.wasm` and the pure sysroot are workflow artifacts kept for 7 days.
   The same logic runs locally:
   `experiments/cranelift-wasm/ci/build-and-test.sh`. The first green run
@@ -178,7 +179,7 @@ To prevent repository bloat, we no longer commit binaries to Git. Instead, we us
 #### Step 1: Build Artifacts
 Generate the binaries by running the following workflows via the GitHub Actions UI (or `gh` CLI).
 
-1. **Build LLVM**: Builds the WASM versions of LLVM/Clang tools.
+1. **Build LLVM**: Builds the Wasm versions of LLVM/Clang tools.
 2. **rustc_llvm_with_lld**: Builds the Rust compiler for the supported host platforms.
    - Run this workflow for each `job` input: `install`, `dist-linux`, `dist-macos`, `dist-windows`.
 

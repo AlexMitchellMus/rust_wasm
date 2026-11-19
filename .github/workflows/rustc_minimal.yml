@@ -29,7 +29,7 @@ jobs:
       - name: copy source
         uses: actions/checkout@v4
         with:
-          # Built from the upstream tag; the rust_wasm patch series is applied
+          # Built from the upstream tag; the CogWasm patch series is applied
           # in the next step, before submodules are initialized.
           repository: 'rust-lang/rust'
           ref: '1.99.1'
@@ -159,7 +159,7 @@ jobs:
       - name: copy source
         uses: actions/checkout@v4
         with:
-          # Built from the upstream tag; the rust_wasm patch series is applied
+          # Built from the upstream tag; the CogWasm patch series is applied
           # in the next step, before submodules are initialized.
           repository: 'rust-lang/rust'
           ref: '1.99.1'

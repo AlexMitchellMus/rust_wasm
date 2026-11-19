@@ -1,6 +1,6 @@
-# Contributing to rust_wasm
+# Contributing to CogWasm
 
-rust_wasm builds a pure-Rust compiler that runs as WebAssembly (see the
+CogWasm builds a pure-Rust compiler that runs as WebAssembly (see the
 [README](README.md)). This file explains how work happens here, how we use AI
 tools, and how we relate to the upstream projects we build on.
 

@@ -69,7 +69,7 @@ jobs:
           sudo apt update
           sudo apt-get install flex bison ccache
 
-      - name: Build WASM binaries
+      - name: Build Wasm binaries
         working-directory: "${{ github.workspace }}/clang"
         run: |
           sed -i 's/DLLVM_TARGETS_TO_BUILD=WebAssembly/DLLVM_TARGETS_TO_BUILD="X86;AArch64;ARM;LoongArch;PowerPC;RISCV;SystemZ;NVPTX;Sparc;WebAssembly"/' build.sh

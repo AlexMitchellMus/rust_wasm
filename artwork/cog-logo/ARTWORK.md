@@ -1,12 +1,12 @@
-# rust_wasm artwork
+# CogWasm artwork
 
 <p align="center">
-  <img src="logo-colour-dark.svg" width="180" alt="rust_wasm app icon">
+  <img src="logo-colour-dark.svg" width="180" alt="CogWasm app icon">
   &nbsp;
-  <img src="logo-colour.svg" width="180" alt="rust_wasm logo in colour">
+  <img src="logo-colour.svg" width="180" alt="CogWasm logo in colour">
 </p>
 
-The rust_wasm mark is an orange gear holding the WebAssembly tag square: the
+The CogWasm mark is an orange gear holding the WebAssembly tag square: the
 compiler (a machine, orange as Rust is often drawn) reaching into WebAssembly
 (the purple square with its tag) through a single spoke. It says what the
 project does: Rust's compiler, running inside and producing WebAssembly.
@@ -75,14 +75,14 @@ Python standard library.
 
 **Copyright © 2026 AlexMitchellMus. All rights reserved.**
 
-The rust_wasm logo, icon and artwork in this folder (the SVG files,
-`make_cog_logo.py` and this document) belong to the rust_wasm project. They are
+The CogWasm logo, icon and artwork in this folder (the SVG files,
+`make_cog_logo.py` and this document) belong to the CogWasm project. They are
 **not** covered by this repository's MIT or Apache-2.0 licence, and no licence
 to copy, modify or reuse them is granted, except as follows.
 
 **You may**, without asking:
 
-- show the unmodified logo or icon to refer to or link to the rust_wasm
+- show the unmodified logo or icon to refer to or link to the CogWasm
   project, for example in an article, a talk, a package listing or a link to
   this repository.
 
@@ -91,7 +91,7 @@ to copy, modify or reuse them is granted, except as follows.
 - use the logo, the icon or anything confusingly similar for another project,
   product, service or organisation;
 - modify the artwork, or use `make_cog_logo.py` to make derived marks;
-- use the artwork in a way that suggests the rust_wasm project endorses you.
+- use the artwork in a way that suggests the CogWasm project endorses you.
 
 To ask for permission, open an issue on this repository.
 

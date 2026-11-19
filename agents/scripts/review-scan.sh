@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Anti-pattern review scan for rust_wasm's own code (agents/skills/anti-pattern-review.md).
+# Anti-pattern review scan for CogWasm's own code (agents/skills/anti-pattern-review.md).
 #
 #   agents/scripts/review-scan.sh            scan everything we own
 #   agents/scripts/review-scan.sh --changed  only crates/files changed against origin/main

@@ -38,8 +38,8 @@ printf '%s\n' "$patches"
 
 # Throwaway committer identity; the author is preserved from each patch.
 # shellcheck disable=SC2086
-GIT_COMMITTER_NAME=rust-wasm-ci \
-GIT_COMMITTER_EMAIL=rust-wasm-ci@users.noreply.github.com \
+GIT_COMMITTER_NAME=cogwasm-ci \
+GIT_COMMITTER_EMAIL=cogwasm-ci@users.noreply.github.com \
   git am $patches
 
 applied=$(git rev-list --count "$base..HEAD")

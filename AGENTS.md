@@ -3,7 +3,7 @@
 Orientation for anyone, human or AI agent, about to change this repository.
 Read it before you start; it is short.
 
-rust_wasm builds **rustc as a WebAssembly module that compiles Rust to
+CogWasm builds **rustc as a WebAssembly module that compiles Rust to
 WebAssembly with no LLVM inside**. The goal and current status are in the
 [README](README.md). Everything you need to contribute is in [`agents/`](agents/):
 
