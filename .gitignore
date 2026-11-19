@@ -1,4 +1,5 @@
 **/target/*
 
-# Logo artwork is kept locally, not in the fork.
-artwork/
+# Old logo experiments stay local; only the published logo in artwork/cog-logo/ is tracked.
+artwork/*
+!artwork/cog-logo/

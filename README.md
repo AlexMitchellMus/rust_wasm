@@ -1,21 +1,126 @@
-# rust_wasm
-A repository for Rust compiler binaries compiled to WebAssembly.
+<p align="center">
+  <img src="artwork/cog-logo/logo-colour-dark.svg" width="180" alt="rust_wasm icon: an orange gear whose spoke reaches into the WebAssembly tag square">
+</p>
 
-## Overview
-This project builds and distributes the Rust compiler and LLVM tools compiled to WebAssembly.
+<h1 align="center">rust_wasm</h1>
 
-## Upstream Sources
-- **rustc_llvm**: [rust-lang/rust](https://github.com/rust-lang/rust) `1.99.1` plus the
-  compiler patches in [`patches/rust-1.99.1/`](patches/rust-1.99.1/). There is no
-  separate `rust` fork: CI checks out the upstream tag, applies the patch series
-  with `git am`, then initializes submodules.
-- **clang, wasm-ld, etc**: [YoWASP/clang](https://github.com/YoWASP/clang)
+<p align="center"><b>The Rust compiler, running as WebAssembly, written in Rust all the way down.</b></p>
 
-## Dependencies
-- [toolchain-for-building-rustc](https://github.com/oligamiq/toolchain-for-building-rustc): Prebuilt toolchain for building rustc.
+## Goal
 
-## Platform Support
-This project targets Tier 1 and Tier 2 host platforms. See [Rust Platform Support](https://doc.rust-lang.org/nightly/rustc/platform-support.html) for details.
+rust_wasm builds **rustc as a WebAssembly module that compiles Rust to
+WebAssembly with no LLVM inside**. The whole compile pipeline is Rust:
+
+```text
+your code ──rustc.wasm──▶ Cranelift IR ──clif-to-wasm──▶ wasm objects ──Wild──▶ module.wasm
+             (rustc_codegen_cranelift)
+```
+
+Anything that can run a wasm module (a WASI runtime such as Wasmtime, an
+application that embeds one, or a browser) can then compile Rust on the spot:
+no rustup, no cargo, no system linker, no C compiler and no LLVM to install.
+That makes it practical to:
+
+- ship a Rust compiler inside an application, for user scripts, plugins or
+  live-reloaded extensions written in Rust;
+- build sandboxed compile services and in-browser playgrounds;
+- compile Rust on machines and platforms where installing a native toolchain
+  isn't possible or wanted.
+
+The priorities are: **pure Rust** (the shipped compiler contains no LLVM),
+**fast edit-to-result** for small programs, and **output that runs in a
+sandbox** with nothing but what the host chooses to provide.
+
+## Status
+
+Working end to end, still experimental. The build lives in
+[`experiments/cranelift-wasm/`](experiments/cranelift-wasm/) and is built and
+tested on every push by [CI](#ci).
+
+| | |
+| --- | --- |
+| Compiler | rustc nightly-2026-10-19 built for `wasm32-wasip1`, Cranelift as its only code generator, single-threaded |
+| Runtime | Plain WASI preview 1 on Wasmtime 50; no threads support needed |
+| Standard library | `core`, `alloc` and `compiler_builtins` for `wasm32-unknown-unknown`, built by `rustc.wasm` itself |
+| No LLVM inside | Audited on every CI run: no LLVM imports, no `rustc_codegen_llvm` or `rustc_llvm` code |
+| Compile time | About 85 ms to compile a small `no_std` program inside `rustc.wasm`, about 100 ms from edit to result with the compiler kept loaded (Apple M-series; about 2–3× that on a CI runner) |
+| Output | A small module of about 35 KB for a typical program, with a growable heap |
+
+Known limits:
+
+- LLVM is still used **once at build time** to compile rustc itself into
+  `rustc.wasm`. Nothing that ships uses it; removing it means self-hosting.
+- Cranelift favours compile speed: tight numeric loops run about 4× slower
+  than LLVM `-O2` output; code that mostly calls its host runs at parity.
+- Procedural macros can't run inside `rustc.wasm` yet, and there is no debug
+  info.
+- The first load of the 137 MB `rustc.wasm` compiles it to native code
+  (about 40 s); later loads come from Wasmtime's cache in under 0.5 s, or ship
+  it precompiled.
+
+## How it works
+
+- **[rustc](https://github.com/rust-lang/rust)** with the rustc-to-wasm patch
+  series from
+  [rust-playground-inbrowser](https://github.com/ryancbuckley/rust-playground-inbrowser)
+  (built on bjorn3's work), plus small patches of our own: run the compiler on
+  the calling thread, return `f128` through a pointer on wasm, and support
+  `memory.grow` / `memory.size`.
+- **[rustc_codegen_cranelift](https://github.com/rust-lang/rustc_codegen_cranelift)**
+  lowers Rust to Cranelift IR.
+- **[clif-to-wasm](https://github.com/ryancbuckley/clif-to-wasm)** turns
+  Cranelift IR into relocatable wasm object files that follow the standard
+  WebAssembly C ABI.
+- **[Wild](https://github.com/wild-linker/wild)**, a linker written in Rust,
+  links them; the host runs it because WASI has no way to start a process.
+
+Every patch is kept small and written so it can go upstream. Revisions are
+pinned in
+[`experiments/cranelift-wasm/README.md`](experiments/cranelift-wasm/README.md).
+
+## Future directions: threads
+
+`rustc.wasm` currently runs **single-threaded**: the compiler and its code
+generator run on the calling thread, so it needs only plain WASI preview 1 and
+works on the latest Wasmtime. For small programs this costs little; parallel
+code generation starts to matter for larger crates.
+
+WebAssembly already has what multi-threaded code needs, but not a standard way
+to start a thread outside the browser:
+
+| Piece | Status (late 2026) |
+| --- | --- |
+| Atomics and shared memory (the core threads proposal) | Standardised and widely supported |
+| Starting a thread | Not part of core wasm. Browsers use Web Workers; standalone runtimes had [wasi-threads](https://github.com/WebAssembly/wasi-threads) as a stopgap, which Wasmtime removed from version 47 on |
+| [shared-everything-threads](https://github.com/WebAssembly/shared-everything-threads/blob/main/proposals/shared-everything-threads/Overview.md), the proper successor | A draft under active development; it adds component-model built-ins so standalone engines can create threads |
+| Wasmtime support for shared-everything-threads | Not implemented yet ([wasmtime#9466](https://github.com/bytecodealliance/wasmtime/issues/9466)) |
+
+There is no target date for shared-everything-threads, so the plan is staged:
+
+1. **Now: stay single-threaded.** Simplest, most portable, and fast enough for
+   small programs. This mode stays available whatever comes next.
+2. **When parallel codegen pays off: host-provided threads.** Wasmtime still
+   supports shared memory and atomics; only the wasi-threads crate was removed.
+   The embedding host can provide a `thread-spawn` import itself: create another
+   instance on the same shared memory, run it on an OS thread and call the
+   module's thread entry point. This is what browsers do with Web Workers. It
+   keeps us on the latest Wasmtime, and rustc's existing threading code works
+   unchanged. Pinning an old Wasmtime that still ships wasi-threads (version 46)
+   also works, but leaves the runtime behind, so it is not the plan.
+3. **When it ships: shared-everything-threads.** Replace the host-provided
+   import with the standard API once it is standardised and implemented in
+   Wasmtime.
+
+## Credits
+
+This repository started as [oligamiq/rust_wasm](https://github.com/oligamiq/rust_wasm),
+which built rustc **with** LLVM for WebAssembly; that build is kept below as
+the legacy path. The pure-Rust compiler stands on bjorn3's rustc-to-wasm and
+Cranelift work, Ryan Buckley's clif-to-wasm and in-browser playground, the Wild
+linker and the Bytecode Alliance's Cranelift and Wasmtime.
+
+Logo and artwork: [`artwork/cog-logo/`](artwork/cog-logo/ARTWORK.md). © 2026
+AlexMitchellMus, all rights reserved; see that file for permitted use.
 
 ## CI
 
@@ -38,11 +143,30 @@ This project targets Tier 1 and Tier 2 host platforms. See [Rust Platform Suppor
   the LLVM/LLD-based compiler and dist jobs. It is **manual only**
   (`workflow_dispatch`) and no longer runs on push.
 
-## 🚀 Release Process
+
+## The LLVM-based build (legacy)
+
+The original approach compiles rustc **with LLVM and LLD** to WebAssembly. It
+is no longer built on push; its workflow can still be run by hand.
+
+### Upstream Sources
+- **rustc_llvm**: [rust-lang/rust](https://github.com/rust-lang/rust) `1.99.1` plus the
+  compiler patches in [`patches/rust-1.99.1/`](patches/rust-1.99.1/). There is no
+  separate `rust` fork: CI checks out the upstream tag, applies the patch series
+  with `git am`, then initializes submodules.
+- **clang, wasm-ld, etc**: [YoWASP/clang](https://github.com/YoWASP/clang)
+
+### Dependencies
+- [toolchain-for-building-rustc](https://github.com/oligamiq/toolchain-for-building-rustc): Prebuilt toolchain for building rustc.
+
+### Platform Support
+This project targets Tier 1 and Tier 2 host platforms. See [Rust Platform Support](https://doc.rust-lang.org/nightly/rustc/platform-support.html) for details.
+
+### Release Process
 
 To prevent repository bloat, we no longer commit binaries to Git. Instead, we use **GitHub Actions Artifacts** and **GitHub Releases**.
 
-### Step 1: Build Artifacts
+#### Step 1: Build Artifacts
 Generate the binaries by running the following workflows via the GitHub Actions UI (or `gh` CLI).
 
 1. **Build LLVM**: Builds the WASM versions of LLVM/Clang tools.
@@ -51,7 +175,7 @@ Generate the binaries by running the following workflows via the GitHub Actions 
 
 **Verification**: After each job completes, verify that the artifacts are uploaded in the "Artifacts" section at the bottom of the run details page.
 
-### Step 2: Create Release
+#### Step 2: Create Release
 Once all builds (LLVM and Rust for each OS) are successful, create a release.
 
 1. Run the **create release** workflow.
@@ -61,7 +185,7 @@ Once all builds (LLVM and Rust for each OS) are successful, create a release.
    - Packages them for distribution (`.tar.gz`, `.br`).
    - Uploads them directly to the **GitHub Releases** page.
 
-### 🌐 Hosting & Download URLs
+#### Hosting and download URLs
 - Assets from GitHub Releases are automatically deployed and hosted on both **Cloudflare Pages** and **GitHub Pages**.
 - **Cloudflare Pages Base URL**: `https://rustwasm0.pages.dev/`
 - **GitHub Pages Base URL**: `https://oligamiq.github.io/rust_wasm/`
@@ -80,7 +204,7 @@ Once all builds (LLVM and Rust for each OS) are successful, create a release.
 
 *Note: On Cloudflare Pages, files larger than 20MB are automatically split (`.part00`, `.part01`...) to bypass file size limits. Use the included `split_manifest.json` (e.g., `https://rustwasm0.pages.dev/v3.0.0/split_manifest.json`) to restore the original files. GitHub Pages hosts the complete, undivided files.*
 
-## About `rustc_unwind.wasm`
+### About `rustc_unwind.wasm`
 
 The `rustc_unwind.wasm` file indicates that the compiler itself was built with `panic=unwind`. It does not automatically make generated programs use unwinding. The panic strategy of generated programs is still controlled by the selected sysroot and `-C panic`.
 
@@ -91,7 +215,7 @@ For normal target programs, use:
 
 Using `-C panic=unwind` requires a separate unwind-enabled sysroot and runtime support for WebAssembly exception handling.
 
-## 🧹 Legacy Cleanup
+### Legacy cleanup
 The following branches previously used to store binaries are now deprecated. After confirming that the new release process distributes files correctly, please delete these branches to reduce repository size:
 
 - `rustc_llvm_with_lld-bins`
@@ -136,6 +260,12 @@ those components. They include:
 | [Wild](https://github.com/wild-linker/wild) | MIT OR Apache-2.0 |
 | [wasi-libc](https://github.com/WebAssembly/wasi-libc) (linked into wasm builds of `std`) | Apache-2.0 WITH LLVM-exception, MIT and others (see its LICENSE files) |
 | [LLVM](https://github.com/llvm/llvm-project), Clang and LLD (the LLVM-based build under `patches/`; build-time only for `experiments/cranelift-wasm/`) | Apache-2.0 WITH LLVM-exception |
+
+The logo, icon and artwork in [`artwork/cog-logo/`](artwork/cog-logo/ARTWORK.md)
+(the images, their generator script and their notes) are **not** covered by the
+MIT or Apache-2.0 licence above. They are © 2026 AlexMitchellMus, all rights
+reserved, and may only be used as described in
+[`ARTWORK.md`](artwork/cog-logo/ARTWORK.md#copyright-and-permitted-use).
 
 ### Patch files
 
