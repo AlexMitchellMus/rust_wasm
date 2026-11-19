@@ -24,14 +24,14 @@ investigation before it can be planned).
 
 ## Goal 1 — Generated code as fast as LLVM, faster where it counts
 
-Today: tight numeric loops run about 3.9× slower than LLVM `-O2` output; code
+Today: tight numeric loops run about 3× slower than LLVM `-O2` output; code
 that mostly calls its host runs at parity. Both go through Wasmtime's Cranelift
 to native code, so the gap is optimisation *before* wasm: inlining, loop
 optimisation, scalar replacement, vectorisation.
 
 | Status | Item | Done when |
 | --- | --- | --- |
-| **in progress** | First code-generation wins in clif-to-wasm (local allocation, stack shaping, fewer redundant loads/stores) | Measured improvement on the A.2 maths benchmark; difftest green |
+| **done** | First code-generation wins in clif-to-wasm (tiny-leaf inlining; 1.25× on A.2 (e), LLVM gap 3.76× → 3.00×) | Measured improvement on the A.2 maths benchmark; difftest green |
 | **open** | A benchmark suite against LLVM `-O0` and `-O2`, run in CI, results published | A table in the README updated by CI |
 | **open** | Tier 2: a background optimising build (aggressive inlining, Cranelift e-graph at full strength, loop-invariant code motion, wasm-level clean-up), swapped in when ready | Within 1.5× of LLVM `-O2` on scalar benchmarks |
 | **open** | Explicit SIMD (wasm `simd128`) supported end to end through clif-to-wasm, with SDK helpers | A `simd128` program in the difftest corpus; measured speed-up |
@@ -43,12 +43,13 @@ optimisation, scalar replacement, vectorisation.
 ## Goal 2 — Near-instant compiler start
 
 Today: the first load compiles the 137 MB `rustc.wasm` to native code (about
-40 s); later loads come from Wasmtime's cache in about 0.44 s.
+38 s); later loads come from Wasmtime's cache in about 0.46 s, or in about
+19 ms from a per-host precompiled `.cwasm`.
 
 | Status | Item | Done when |
 | --- | --- | --- |
-| **in progress** | Precompiled native `rustc.wasm` per host, with version checks and a fallback | First compile after install in well under 1 s |
-| **in progress** | Incremental compilation kept across edits | One-line edits measurably faster than a cold compile |
+| **done** | Precompiled native `rustc.wasm` per host, with version checks and a fallback (18.7 ms load; release workflow and dry-run bundle) | First compile after install in well under 1 s |
+| **done** | Incremental compilation kept across edits (opt-in; 12–14% faster edit-to-result, +12–18% output) | One-line edits measurably faster than a cold compile |
 | **open** | Snapshot an already-initialised compiler, so starting skips set-up; copy-on-write memory instantiation | Instantiation in about 10 ms |
 | **open** | A smaller `rustc.wasm` (drop Clippy, rustfmt and unused targets from the build) | Size and load time measured before/after |
 | **open** | A resident compiler service in the host (keep `rustc.wasm` loaded, reuse its caches) | Edit → result under 100 ms on a CI runner |
@@ -64,7 +65,7 @@ Today: the first load compiles the 137 MB `rustc.wasm` to native code (about
 | **open** | Debug info: DWARF through the Cranelift backend, clif-to-wasm and Wild | Stack traces with source lines |
 | **open** | Panics that unwind, via wasm exception handling | Unwinding tests pass |
 | **open** | Threads: host-provided `thread-spawn` now, shared-everything-threads when it ships (see the README) | Parallel code generation measured |
-| **open** | Versioned releases: `rustc.wasm`, matching standard library, Wild and third-party notices | A published, reproducible release |
+| **in progress** | Versioned releases: `rustc.wasm`, matching standard library, Wild and third-party notices (workflow + local dry-run bundle; not yet published) | A published, reproducible release |
 
 ## Goal 4 — No LLVM anywhere, not even to build
 

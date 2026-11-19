@@ -44,20 +44,25 @@ with LLVM rustc on every run: [`difftest`](experiments/cranelift-wasm/difftest/R
 | Runtime | Plain WASI preview 1 on Wasmtime 50; no threads support needed |
 | Standard library | `core`, `alloc` and `compiler_builtins` for `wasm32-unknown-unknown`, built by `rustc.wasm` itself |
 | No LLVM inside | Audited on every CI run: no LLVM imports, no `rustc_codegen_llvm` or `rustc_llvm` code |
-| Compile time | About 85 ms to compile a small `no_std` program inside `rustc.wasm`, about 100 ms from edit to result with the compiler kept loaded (Apple M-series; about 2–3× that on a CI runner) |
+| Compile time | About 79 ms to compile a small `no_std` program inside `rustc.wasm`, about 96 ms from edit to result with the compiler kept loaded (Apple M-series; about 2–3× that on a CI runner) |
+| Incremental | One-line edits reuse rustc's incremental cache in the resident compiler: about 12–14% faster edit to result for 12–18% larger output; opt-in (`--incremental`), off by default |
+| First load | 37.6 s to compile the 137 MiB `rustc.wasm`, 0.46 s from Wasmtime's cache, **18.7 ms** from a per-host precompiled `.cwasm` (282 MiB); the release bundle ships one per host |
 | Output | A small module of about 35 KB for a typical program, with a growable heap |
 
 Known limits:
 
 - LLVM is still used **once at build time** to compile rustc itself into
   `rustc.wasm`. Nothing that ships uses it; removing it means self-hosting.
-- Cranelift favours compile speed: tight numeric loops run about 4× slower
-  than LLVM `-O2` output; code that mostly calls its host runs at parity.
+- Cranelift favours compile speed: tight numeric loops run about 3× slower
+  than LLVM `-O2` output (down from about 4× after the tiny-leaf inliner); code
+  that mostly calls its host runs at parity.
 - Procedural macros can't run inside `rustc.wasm` yet, and there is no debug
   info.
 - The first load of the 137 MB `rustc.wasm` compiles it to native code
-  (about 40 s); later loads come from Wasmtime's cache in under 0.5 s, or ship
-  it precompiled.
+  (about 38 s); later loads come from Wasmtime's cache in about 0.46 s, or in
+  about 19 ms from a per-host `.cwasm` (282 MB) built by the release workflow.
+  The `.cwasm` is tied to the exact Wasmtime version and engine configuration;
+  a mismatch falls back to compiling the `.wasm`.
 
 ## How it works
 

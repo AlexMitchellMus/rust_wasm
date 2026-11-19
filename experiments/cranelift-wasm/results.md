@@ -418,3 +418,148 @@ Date: 2026-11-18/19. Stage C is in [`stage-c/`](stage-c/); details are in
   `stage-c/patches/clif-to-wasm/0001-…memory-grow-and-size.patch` and
   `stage-c/patches/cg_clif/0001-…memory-grow-and-size.patch`. No Wild patch:
   the growable heap removes the 1 MiB data segment.
+
+---
+
+# Speed batch (2026-11-19): precompiled compiler, incremental builds, better wasm
+
+Date: 2026-11-19. Host: macOS arm64 (Apple M4 Pro, 14 CPUs, 48 GB RAM).
+rustc `nightly-2026-10-19`, Wasmtime 50.0.2. Every number is a median of 5 on
+the same machine and build profile. Final artifact: `rustc.wasm`
+**144,051,631 B**, SHA-256
+`d2404a865ef00149cc922bd6b9d15548e02d07890391eef3af4587de9376fb91`. The same
+`experiments/cranelift-wasm/ci/build-and-test.sh` runs locally and in CI; the
+local full run passed in **135 s**, including the two new checks below.
+
+## 1. Precompiled `rustc.wasm` (`.cwasm`)
+
+`stage-c-precompile` writes a host artifact with `Engine::precompile_module`
+and a sidecar recording the Wasmtime version (50.0.2), the engine's
+`precompile_compatibility_hash()`, the target triple, the engine configuration
+and the sizes/SHA-256 of both files. The host's `--precompiled PATH` tries the
+artifact and falls back to `Module::new(rustc.wasm)` on any mismatch, with a
+warning naming the reason.
+
+| how the host gets `rustc.wasm` | median | size |
+|---|---:|---:|
+| compile the `.wasm` from scratch (no cache) | **37,561 ms** | 144,051,631 B |
+| Wasmtime's compiled-module cache | **461.5 ms** | — |
+| deserialize the per-host `.cwasm` (default checks) | **18.7 ms** | 296,372,016 B |
+| `.cwasm` with `--verify-precompiled` (full SHA-256 of 419 MB) | **759.0 ms** | — |
+| `Engine::precompile_module` (paid once per host/release) | **38,247 ms** | — |
+
+The 282 MiB `.cwasm` is native code and only loads on the exact Wasmtime
+version, engine configuration and target. The full SHA-256 check is opt-in: it
+costs far more than the deserialization it protects. Fallbacks are tested in CI
+(`run.sh precompiled-check`): a mismatched compatibility hash and a truncated
+artifact both print the reason and still compile plugin (c), which returns
+`2.25`.
+
+The release workflow builds one `.cwasm` per host (macOS arm64, Linux x86_64)
+from the same `rustc.wasm`; macOS was built and measured locally, and the Linux
+path is exercised by CI's precompiled check on `ubuntu-latest`. Windows is not a
+host target yet: the reference host preopens native paths as WASI `/`, and
+neither the drive-path translation nor Wild's Windows behaviour is tested.
+
+## 2. Incremental compilation inside a resident `rustc.wasm`
+
+The host keeps its Wasmtime engine and compiled `rustc.wasm` resident across
+edits and passes a persistent, WASI-preopened `-Cincremental=DIR`. Two wasm
+gaps had to be fixed at the source:
+
+* `patches/rust/0003-wasm-file-locks.patch`: WASI p1 has no file locks, so
+  rustc's fallback rejected the session lock. A process-local lock registry
+  gives the same exclusive/shared semantics as the Unix fallback (WASI cannot
+  coordinate processes; the host contract is one compiler instance per
+  directory).
+* `patches/rust/0004-wasm-sync-cached-cgus.patch`: the stage-C synchronous
+  coordinator handled fresh CGUs but dropped cached-CGU messages on the second
+  incremental run, so reused objects never reached Wild (undefined `drop_glue`
+  and `alloc` symbols). The synchronous path now copies cached work products
+  inline, exactly as the coordinator thread does.
+
+mmap, fsync, timestamps, rename and hard links needed no change: `memmap`
+already falls back to `Vec<u8>` on wasm, and WASI p1 implements the rest.
+
+| program | cold compile | first incremental | steady incremental | cold → incremental edit-to-result | incr. dir |
+|---|---:|---:|---:|---:|---:|
+| plugin (c), one-line edit | 96.1 ms | 94.6 ms | **79.9 ms** | 113.7 → **97.7 ms** (−14.1%) | 590 KB / 11 files |
+| A.2 (e), one-line edit | 105.9 ms | 106.3 ms | **88.2 ms** | 136.7 → **119.8 ms** (−12.4%) | 652 KB / 11 files |
+
+`difftest/incremental-check.sh` compiles corpus `smoke.rs` cold and twice with
+one persistent directory and requires identical `run(seed)` results and output
+buffers (4 seeds). It passes. Cold and incremental output are **not**
+byte-identical, and that is a real cost: incremental uses a finer CGU/shared-
+generics split, so fewer tiny helpers are inlined. For `smoke.rs` the module
+grows 64,616 → 75,555 B (+16.9%, code 30,687 → 35,452 B, 131 → 190 functions);
+plugin (c) grows 34,583 → 40,783 B (+18%) and A.2 (e) 58,252 → 65,299 B (+12%).
+The incremental A.2 module still runs within ~1% of the cold one (6.91 vs
+6.83 ms). Compile-time is the win: about 16–17% less compile and 12–14% less
+edit-to-result.
+
+**Recommendation:** keep incremental **opt-in** (`--incremental`, off by
+default). It is a measurable win for repeated edits of one crate and it is
+correct, but +12–18% output size for 12–14% edit-to-result is not a default
+worth imposing until the cold and incremental codegen paths inline the same
+helpers.
+
+## 3. Better wasm from clif-to-wasm: inline tiny leaf functions
+
+Profiling A.2 (e) by operation isolated the gap: the loop itself and `sin`/`cos`
+were near parity, while the software `sqrt` cost 69.6 ns/point under cg_clif vs
+12.3 under LLVM — 57 of the 65 ns gap. LLVM inlines the one- and two-instruction
+`core` operator/cast helpers inside libm's `sqrt_round`; cg_clif has no inliner,
+and rustc's MIR inliner runs before monomorphization, so every helper stayed a
+wasm `call` plus argument moves and stack traffic.
+
+`patches/clif-to-wasm/0002-inline-small-leaf-functions.patch` adds a narrow
+inliner built on Cranelift's `Context::inline`: direct calls to a leaf of at
+most 12 instructions and 4 blocks, with no calls, memory, globals, tables,
+traps or conditional branches (a `nop`, a straight-line `jump` and the final
+`return` are allowed). `patches/cg_clif/0003-wasm-inline-small-functions.patch`
+collects the candidate bodies of a wasm codegen unit before compiling and runs
+the pass, so call order in the unit does not matter. Only the wasm object path
+is changed.
+
+| metric | before | after | change |
+|---|---:|---:|---:|
+| (e) run, 100k points | 86.45 ns/pt | **68.99 ns/pt** | **1.25× faster** |
+| (e) code size / functions | 39,995 B / 180 | **39,152 B / 150** | −2.1% / −30 |
+| (e) total size | 62,124 B | **58,252 B** | −6.2% |
+| (f) run, 200k host calls | 3.799 ns/call | **3.781 ns/call** | unchanged (host-bound) |
+| (f) code size | 21,965 B | **21,937 B** | unchanged |
+| isolated `sqrt` probe | 69–75 ns/pt | **~52 ns/pt** | 1.3–1.4× faster |
+| sqrt probe total size | 28,181 B | **24,870 B** | −11.8% |
+
+Against LLVM `-O2`, (e) moves from **3.76×** slower to **3.00×**; (f) stays at
+parity. The inliner is one linear walk per function and the final stage-B
+compile median did not regress (79.4 ms vs 81.9 ms before). The full difftest
+corpus plus 24 seeded random programs passes on the final stack (72 programs,
+288 calls, 0 mismatches), and the no-LLVM audit still reports 0 imports and 0
+forbidden names.
+
+## Reproduce
+
+```sh
+experiments/cranelift-wasm/ci/build-and-test.sh   # includes incremental + cwasm checks
+
+cd experiments/cranelift-wasm
+stage-c/run.sh bench            # stage-B table (writes stage-c/results/stage-c.json)
+stage-c/run.sh a2               # A.2 (e)/(f)
+stage-c/run.sh incremental      # cold vs incremental, JSON in stage-c/results/
+stage-c/run.sh precompiled-check
+difftest/run.sh --seeds 24
+stage-c/precompile/package.sh --tag v0.0.0-dryrun --skip-build --out release/out
+```
+
+## What did not pan out
+
+* `-Ccodegen-units=16` with incremental did not recover the cold build's
+  inlining: 16 and 256 incremental CGUs both produced 120 functions for plugin
+  (c), vs 92 cold. The extra functions come from incremental's shared-generics
+  split, not the CGU count.
+* The `--verify-precompiled` digest check is too slow to be the default
+  (759 ms vs 18.7 ms); it stays opt-in and `SHA256SUMS` covers install-time
+  verification.
+* Windows remains unsupported for the precompiled bundle (WASI path mapping and
+  Wild untested); it is documented rather than half-supported.

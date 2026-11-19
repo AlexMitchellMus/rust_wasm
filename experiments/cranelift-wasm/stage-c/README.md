@@ -20,9 +20,13 @@ Stage C closes the remaining non-Rust pieces of the stage-A/B plugin pipeline:
    `memory.grow` instead of a fixed 1 MiB `.bss` heap; Wild and rust-lld now
    produce the same 35 KB artifact, down from 1.08 MB with Wild.
 4. **Re-measured on the latest Wasmtime**, median of 5, against the stage-B
-   and A.2 tables. Headline: plugin compile inside rustc.wasm **83.6 ms**,
-   link **6.5 ms**, edit-to-result **101.2 ms**, `eval(1,2,3,4) == 2.25`.
-   The plugin is **34,921 bytes** (Wild) / **34,940** (rust-lld), not 1.07 MB.
+   and A.2 tables. After the 2026-11-19 speed batch the headline is: plugin
+   compile inside rustc.wasm **79.4 ms**, link **6.5 ms**, edit-to-result
+   **96.2 ms**, `eval(1,2,3,4) == 2.25`. A per-host precompiled `.cwasm` loads
+   in **18.7 ms** (vs 37.6 s cold, 461 ms from Wasmtime's cache), and a
+   one-line edit with `--incremental` takes **97.7 ms** steady-state
+   (14.1% less than a cold compile). See the speed-batch section of
+   [`../results.md`](../results.md).
 
 Full numbers and comparisons: [`results.md`](results.md) and the appended
 [`../results.md`](../results.md) stage-C section.
@@ -102,11 +106,13 @@ stage-c/run.sh a2
 stage-c/scripts/run-item3.sh all
 ```
 
-`build-rustc-wasm.sh` reuses the stage-B source/build tree. `x.py install`
-may return non-zero in the final `generate-copyright` step because patched
-clif-to-wasm is a path dependency; the script copies
-`build/wasm32-wasip1/stage2/bin/rustc.wasm` before that packaging step and
-treats the artifact as the result. All measurements below use that artifact.
+`build-rustc-wasm.sh` reuses the stage-B source/build tree and applies every
+patch under `patches/rust/`, `patches/cg_clif/` and `patches/clif-to-wasm/` in
+sorted order, idempotently. `x.py install` must succeed: the former
+`generate-copyright` failure for the out-of-tree clif-to-wasm path dependency
+is fixed by `patches/rust/0002-generate-copyright-path-deps.patch`. On any
+non-zero exit the script prints the tail of the log and stops; it only copies
+`build/wasm32-wasip1/stage2/bin/rustc.wasm` after a successful install.
 
 ## Item 1: run on the calling thread, latest Wasmtime
 
@@ -190,6 +196,11 @@ patch is needed. Exact numbers are in
 | 2 | [`patches/cg_clif/0002-…f128-sret-return.patch`](patches/cg_clif/0002-wasm-f128-sret-return.patch) | wasm: return f128 through an sret pointer, matching the C ABI | **Yes.** Includes an example regression and a cg_clif test-suite case. |
 | 3 | [`patches/clif-to-wasm/0001-…memory-grow-and-size.patch`](patches/clif-to-wasm/0001-lower-wasm-memory-grow-and-size.patch) | lower wasm `memory.grow` / `memory.size` helper calls | **Yes.** Public `WasmIntrinsic`, validation, tests. Needs a paired cg_clif patch/release. |
 | 4 | [`patches/cg_clif/0001-…memory-grow-and-size.patch`](patches/cg_clif/0001-wasm-lower-memory-grow-and-size.patch) | wasm: lower `memory.grow` / `memory.size` LLVM intrinsics | **Yes, paired with #3.** Requires the clif-to-wasm `WasmIntrinsic` API; upstream as a two-PR series. |
+| 5 | [`patches/rust/0002-…generate-copyright-path-deps.patch`](patches/rust/0002-generate-copyright-path-deps.patch) | generate-copyright: read notices from an out-of-tree path dependency's own source directory | **Yes.** Small bootstrap-tool fix with a unit test; unblocks `x.py install` with the path-dependency clif-to-wasm. |
+| 6 | [`patches/rust/0003-…wasm-file-locks.patch`](patches/rust/0003-wasm-file-locks.patch) | wasm: process-local file-lock fallback for incremental compilation | **Yes, with review.** WASI p1 has no lock API; one-instance-per-directory is a host contract. |
+| 7 | [`patches/rust/0004-…sync-cached-cgus.patch`](patches/rust/0004-wasm-sync-cached-cgus.patch) | wasm: feed cached CGUs to synchronous codegen so incremental reuse links | **Yes, paired with #1.** Fixes the second-incremental-run undefined symbols. |
+| 8 | [`patches/clif-to-wasm/0002-…inline-small-leaf-functions.patch`](patches/clif-to-wasm/0002-inline-small-leaf-functions.patch) | inline tiny leaf functions before wasm codegen | **Yes.** Narrow policy with tests; A.2 (e) 1.25× faster. |
+| 9 | [`patches/cg_clif/0003-…wasm-inline-small-functions.patch`](patches/cg_clif/0003-wasm-inline-small-functions.patch) | wasm: give clif-to-wasm the codegen unit's small leaf bodies | **Yes, paired with #8.** |
 | — | Wild | no patch: growable heap removes the 1 MiB data segment | n/a (see notes) |
 
 The rust patch applies on top of the 23-patch prior-art series; the cg_clif
