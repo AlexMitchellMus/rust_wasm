@@ -1,0 +1,97 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stage C <stage-c@example.invalid>
+Date: Thu, 19 Nov 2026 15:40:33 +1030
+Subject: [PATCH] wasm: feed cached CGUs to synchronous codegen
+
+The stage-C patch that runs codegen synchronously on wasm
+(0001-wasm-run-compiler-and-codegen-on-calling-thread) replaced the
+coordinator thread's message loop, but only for freshly compiled CGUs:
+submit_codegened_module_to_llvm calls the synchronous path directly, while
+the two cached-module submit functions still sent messages into the
+coordinator channel that no thread drains.
+
+On the second incremental compilation, unchanged CGUs are reused with
+CguReuse::PostLto and submitted through submit_post_lto_module_to_llvm as
+WorkItem::CopyPostLtoArtifacts. With no coordinator thread that message was
+dropped, so the reused object files never reached the linker and Wild
+reported undefined symbols for drop glue and generic alloc/core
+instantiations. The first incremental run works because all CGUs are
+compiled afresh, and -Ccodegen-units=1 hides the problem because there is
+no cross-CGU reuse.
+
+Handle the cached path in synchronous codegen as well: copy the cached
+artifacts inline with execute_copy_from_cache_work_item, exactly as the
+coordinator thread does for CopyPostLtoArtifacts, and push the resulting
+module into CompiledModules. Pre-LTO reuse only exists for LTO builds, which
+this codegen backend does not support, so fail loudly rather than dropping
+it. The copy helper is a free function at the end of the file so that this
+patch stays outside the hunks of 0001 and the build script's
+reverse-check-based idempotence keeps working.
+
+A second incremental compile of plugin (c) reproduced the failure before
+this change (reused object plus fresh allocator object only; Wild reported
+undefined drop_glue/RawVec/Iterator symbols). With the fix applied to the
+combined-build rustc.wasm, stage-c/run.sh incremental passes for plugin (c)
+and A.2 (e) on every cold and incremental run, and
+difftest/incremental-check.sh passes for corpus smoke.rs. The measured
+numbers and the output-size caveat are in stage-c/notes/incremental.md.
+Changed by the contributors to the rust_wasm repository.
+---
+ compiler/rustc_codegen_ssa/src/back/write.rs | 33 +++++++++++++++++++++++++++++++
+ 1 file changed, 33 insertions(+)
+
+diff --git a/compiler/rustc_codegen_ssa/src/back/write.rs b/compiler/rustc_codegen_ssa/src/back/write.rs
+index dcc57ef..dba129e 100644
+--- a/compiler/rustc_codegen_ssa/src/back/write.rs
++++ b/compiler/rustc_codegen_ssa/src/back/write.rs
+@@ -2314,6 +2314,10 @@ pub(crate) fn submit_post_lto_module_to_llvm<B: WriteBackendMethods>(
+     coordinator: &Coordinator<B>,
+     module: CachedModuleCodegen,
+ ) {
++    if let Some(sync) = &coordinator.sync {
++        copy_cached_sync_module(&mut sync.borrow_mut(), module);
++        return;
++    }
+     let llvm_work_item = WorkItem::CopyPostLtoArtifacts(module);
+     drop(coordinator.sender.send(Message::CodegenDone::<B> { llvm_work_item, cost: 0 }));
+ }
+@@ -2323,6 +2327,15 @@ pub(crate) fn submit_pre_lto_module_to_llvm<B: WriteBackendMethods>(
+     coordinator: &Coordinator<B>,
+     module: CachedModuleCodegen,
+ ) {
++    // Pre-LTO reuse only exists for LTO builds, which this backend does not
++    // support. Fail loudly instead of leaving the cached module in the
++    // coordinator channel that synchronous codegen never drains.
++    if coordinator.sync.is_some() {
++        tcx.sess.dcx().fatal(
++            "synchronous wasm codegen does not support pre-LTO incremental reuse: \
++             LTO is not supported by this codegen backend",
++        );
++    }
+     let filename = pre_lto_bitcode_filename(&module.name);
+     let old_bitcode_path =
+         in_old_incr_comp_dir_sess(tcx.incr_comp_session.unwrap(), &filename).unwrap();
+@@ -2374,3 +2387,23 @@ fn msvc_imps_needed(tcx: TyCtxt<'_>) -> bool {
+     // dynamic linking when linker plugin LTO is enabled.
+     !tcx.sess.opts.cg.linker_plugin_lto.enabled()
+ }
++
++/// Copy a CGU reused from the incremental cache into a synchronous
++/// [`SyncCodegen`]'s module list.
++///
++/// When codegen has a coordinator thread, `WorkItem::CopyPostLtoArtifacts`
++/// travels through that thread's queue. In synchronous mode there is no thread
++/// to drain the queue, so the copy happens inline instead; without it, reused
++/// object files never reach the linker.
++fn copy_cached_sync_module<B: WriteBackendMethods>(
++    sync: &mut SyncCodegen<B>,
++    module: CachedModuleCodegen,
++) {
++    let compiled = execute_copy_from_cache_work_item(
++        &sync.cgcx,
++        &sync.prof,
++        sync.shared_emitter.clone(),
++        module,
++    );
++    sync.compiled_modules.push(compiled);
++}

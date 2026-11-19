@@ -1,0 +1,158 @@
+{
+  "kind": "e-math",
+  "crate_name": "e_math",
+  "incremental_dir": "/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-c/work-inc/e/inc",
+  "cold": {
+    "module_load_ms": 0.0,
+    "instantiate_ms": 1.018292,
+    "rustc_total_ms": 116.33775,
+    "link_ms": 6.907833,
+    "compile_ms": 109.429917,
+    "plugin_load_ms": 16.858583,
+    "eval_ms": 6.937083,
+    "end_to_end_ms": 141.151708,
+    "rc": 0,
+    "result": 4.708740636663222,
+    "spawns": [
+      {
+        "program": "wild",
+        "args": 30,
+        "ms": 6.907833,
+        "status": 0
+      }
+    ]
+  },
+  "runs": [
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.73475,
+      "rustc_total_ms": 121.54037500000001,
+      "link_ms": 7.167666,
+      "compile_ms": 114.37270900000001,
+      "plugin_load_ms": 17.724957999999997,
+      "eval_ms": 6.711208,
+      "end_to_end_ms": 146.71129100000002,
+      "rc": 0,
+      "result": 4.708740636663222,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 36,
+          "ms": 7.167666,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.792458,
+      "rustc_total_ms": 94.99383399999999,
+      "link_ms": 7.051333,
+      "compile_ms": 87.942501,
+      "plugin_load_ms": 17.025375,
+      "eval_ms": 6.794042,
+      "end_to_end_ms": 119.60570899999999,
+      "rc": 0,
+      "result": 4.708740636663222,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 36,
+          "ms": 7.051333,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.900125,
+      "rustc_total_ms": 93.53450000000001,
+      "link_ms": 6.626792,
+      "compile_ms": 86.90770800000001,
+      "plugin_load_ms": 17.167917000000003,
+      "eval_ms": 6.877542,
+      "end_to_end_ms": 118.48008400000002,
+      "rc": 0,
+      "result": 4.708740636663222,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 36,
+          "ms": 6.626792,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.754667,
+      "rustc_total_ms": 93.55912500000001,
+      "link_ms": 6.999792,
+      "compile_ms": 86.55933300000001,
+      "plugin_load_ms": 17.037167,
+      "eval_ms": 6.831584,
+      "end_to_end_ms": 118.18254300000001,
+      "rc": 0,
+      "result": 4.708740636663222,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 36,
+          "ms": 6.999792,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.807875,
+      "rustc_total_ms": 97.694708,
+      "link_ms": 7.211333000000001,
+      "compile_ms": 90.48337500000001,
+      "plugin_load_ms": 16.785083,
+      "eval_ms": 6.973833,
+      "end_to_end_ms": 122.261499,
+      "rc": 0,
+      "result": 4.708740636663222,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 36,
+          "ms": 7.211333000000001,
+          "status": 0
+        }
+      ]
+    }
+  ],
+  "first_incremental_compile_ms": 114.37270900000001,
+  "first_incremental_edit_to_result_ms": 146.71129100000002,
+  "cold_wasm_sha256": "6ae1a14dd5f743e38355df7d0d63fdec857eb92808462f35cef622f535117a3c",
+  "incremental_wasm_sha256": [
+    "6b81d182edd650cef6ca0006aa865b355ddad3446f62e6fc9e0cadbc37c0b6b6",
+    "07487ffcd72bc9ebbb57b9c46e2a53197424c0440ba666adc88de1a9a8d4bdd9",
+    "6b81d182edd650cef6ca0006aa865b355ddad3446f62e6fc9e0cadbc37c0b6b6",
+    "07487ffcd72bc9ebbb57b9c46e2a53197424c0440ba666adc88de1a9a8d4bdd9",
+    "6b81d182edd650cef6ca0006aa865b355ddad3446f62e6fc9e0cadbc37c0b6b6"
+  ],
+  "wasm_identical": false,
+  "results_identical": true,
+  "semantics_change_verified": true,
+  "changed_edit_wasm_differs": true,
+  "changed_edit_result": 5.708740636663233,
+  "changed_edit_expected": 5.708740636663222,
+  "incremental_dir_files": 11,
+  "incremental_dir_bytes": 652146,
+  "medians": {
+    "cold_compile_ms": 109.429917,
+    "cold_edit_to_result_ms": 141.151708,
+    "cold_link_ms": 6.907833,
+    "first_incremental_compile_ms": 114.37270900000001,
+    "first_incremental_edit_to_result_ms": 146.71129100000002,
+    "incremental_compile_ms": 87.942501,
+    "incremental_edit_to_result_ms": 119.60570899999999,
+    "incremental_link_ms": 7.051333,
+    "steady_incremental_compile_ms": 87.4251045,
+    "steady_incremental_edit_to_result_ms": 119.04289650000001
+  },
+  "ok": true
+}

@@ -184,6 +184,18 @@ compiles both backends for every program. It needs the stage-C artifacts:
 `toolchain/target/wild/release/wild`, and the isolated nightly rustup. Missing
 artifacts produce a clear error; run `stage-c/scripts/build-*.sh` first.
 
+### Incremental-compilation check
+
+`incremental-check.sh` compiles `corpus/smoke.rs` cold, then twice with one
+persistent `-C incremental` directory, and requires all three linked modules to
+be byte-identical. It is the regression check for the wasm file-lock fallback
+and the host's `--incremental` path; `stage-c/run.sh incremental` checks the
+real programs. It needs the same stage-C artifacts as `run.sh`:
+
+```sh
+difftest/incremental-check.sh
+```
+
 ### Environment overrides
 
 | Variable | Default |

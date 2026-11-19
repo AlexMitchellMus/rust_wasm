@@ -1,0 +1,158 @@
+{
+  "kind": "c-plugin",
+  "crate_name": "c_plugin",
+  "incremental_dir": "/Users/alexandermitchell/Documents/github/rust-wasm-compiler/rust_wasm/experiments/cranelift-wasm/toolchain/stage-c/work-inc/c/inc",
+  "cold": {
+    "module_load_ms": 0.0,
+    "instantiate_ms": 1.286708,
+    "rustc_total_ms": 123.427875,
+    "link_ms": 7.189042,
+    "compile_ms": 116.238833,
+    "plugin_load_ms": 10.371833,
+    "eval_ms": 0.000875,
+    "end_to_end_ms": 135.08729100000002,
+    "rc": 0,
+    "result": 2.25,
+    "spawns": [
+      {
+        "program": "wild",
+        "args": 23,
+        "ms": 7.189042,
+        "status": 0
+      }
+    ]
+  },
+  "runs": [
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.733,
+      "rustc_total_ms": 109.41962500000001,
+      "link_ms": 7.270542,
+      "compile_ms": 102.149083,
+      "plugin_load_ms": 11.023625000000001,
+      "eval_ms": 0.00075,
+      "end_to_end_ms": 121.177,
+      "rc": 0,
+      "result": 2.25,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 29,
+          "ms": 7.270542,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.703708,
+      "rustc_total_ms": 91.34762500000001,
+      "link_ms": 6.713667,
+      "compile_ms": 84.633958,
+      "plugin_load_ms": 10.985292000000001,
+      "eval_ms": 0.000833,
+      "end_to_end_ms": 103.03745800000002,
+      "rc": 0,
+      "result": 2.25,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 29,
+          "ms": 6.713667,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.755625,
+      "rustc_total_ms": 89.425375,
+      "link_ms": 6.835208,
+      "compile_ms": 82.59016700000001,
+      "plugin_load_ms": 10.643625,
+      "eval_ms": 0.00075,
+      "end_to_end_ms": 100.825375,
+      "rc": 0,
+      "result": 2.25,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 29,
+          "ms": 6.835208,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.701792,
+      "rustc_total_ms": 86.795334,
+      "link_ms": 6.255083,
+      "compile_ms": 80.540251,
+      "plugin_load_ms": 10.86125,
+      "eval_ms": 0.000834,
+      "end_to_end_ms": 98.35920999999999,
+      "rc": 0,
+      "result": 2.25,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 29,
+          "ms": 6.255083,
+          "status": 0
+        }
+      ]
+    },
+    {
+      "module_load_ms": 0.0,
+      "instantiate_ms": 0.691709,
+      "rustc_total_ms": 88.29195800000001,
+      "link_ms": 6.825292,
+      "compile_ms": 81.466666,
+      "plugin_load_ms": 10.909125000000001,
+      "eval_ms": 0.001,
+      "end_to_end_ms": 99.89379200000002,
+      "rc": 0,
+      "result": 2.25,
+      "spawns": [
+        {
+          "program": "wild",
+          "args": 29,
+          "ms": 6.825292,
+          "status": 0
+        }
+      ]
+    }
+  ],
+  "first_incremental_compile_ms": 102.149083,
+  "first_incremental_edit_to_result_ms": 121.177,
+  "cold_wasm_sha256": "e61cec2f335754442bb6806b8caee2063536d4a81c30a441418ba549bf8f9c8a",
+  "incremental_wasm_sha256": [
+    "47b1eb77f72358807398434a544711b765ecb93516cc3dc3df5eb3ca95f94a3d",
+    "54861f4513fdc1a5d88cc23764931cfae72e538dded42dd316424d9f786e7040",
+    "47b1eb77f72358807398434a544711b765ecb93516cc3dc3df5eb3ca95f94a3d",
+    "54861f4513fdc1a5d88cc23764931cfae72e538dded42dd316424d9f786e7040",
+    "47b1eb77f72358807398434a544711b765ecb93516cc3dc3df5eb3ca95f94a3d"
+  ],
+  "wasm_identical": false,
+  "results_identical": true,
+  "semantics_change_verified": true,
+  "changed_edit_wasm_differs": true,
+  "changed_edit_result": 2.5,
+  "changed_edit_expected": 2.5,
+  "incremental_dir_files": 11,
+  "incremental_dir_bytes": 589978,
+  "medians": {
+    "cold_compile_ms": 116.238833,
+    "cold_edit_to_result_ms": 135.08729100000002,
+    "cold_link_ms": 7.189042,
+    "first_incremental_compile_ms": 102.149083,
+    "first_incremental_edit_to_result_ms": 121.177,
+    "incremental_compile_ms": 82.59016700000001,
+    "incremental_edit_to_result_ms": 100.825375,
+    "incremental_link_ms": 6.825292,
+    "steady_incremental_compile_ms": 82.0284165,
+    "steady_incremental_edit_to_result_ms": 100.35958350000001
+  },
+  "ok": true
+}

@@ -8,6 +8,8 @@
 #   ./run.sh a2check    A.2 (e)/(f) correctness assertions (no timing checks)
 #   ./run.sh bench      stage-B table on latest Wasmtime (median of 5)
 #   ./run.sh a2         A.2 runtime/load measurements for (e),(f)
+#   ./run.sh incremental  cold vs -C incremental, one-line edits, (c) and (e)
+#   ./run.sh precompiled-check  .cwasm load + mismatch/truncation fallback
 set -euo pipefail
 STAGE_C=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 ROOT=$(cd "$STAGE_C/.." && pwd)
@@ -80,6 +82,100 @@ case "${1:-check}" in
             --cache-dir "$TOOL/stage-c/cache" --runs 5 \
             --json "$STAGE_C/results/stage-c.json"
         ;;
+    incremental)
+        need "$RUSTC_WASM"; need "$PURE"; need "$HOST"; need "$WILD"
+        mkdir -p "$TOOL/stage-c/work-inc" "$STAGE_C/results"
+        # e_math uses the `libm` crate. A direct rustc.wasm invocation (which is
+        # what measures one edit in the resident host) needs the rlib that
+        # cargo builds, so build the program once through the usual wrapper
+        # first, then pass that exact rlib to the host.
+        echo "== building e_math and its libm rlib with rustc.wasm"
+        # Touch the source so cargo prints the e_math rustc invocation even when
+        # the previous build is up to date: the verbose log is where the exact
+        # `--extern libm=...` rlib that cargo selected can be read without
+        # guessing between stale build directories.
+        touch "$STAGE_C/programs/e_math/src/lib.rs"
+        BUILD_LOG="$TOOL/stage-c/work-inc/e-build.log"
+        mkdir -p "$TOOL/stage-c/work-inc"
+        ( cd "$STAGE_C/programs/e_math" && RUSTFLAGS="-Cpanic=abort" \
+            cargo build --release --target wasm32-unknown-unknown -v ) 2>&1 | tee "$BUILD_LOG"
+        # Cargo passes both the rlib and its rmeta: the rlib contains the object
+        # files but only a metadata stub, and the rmeta carries the full
+        # metadata. rustc needs both (passing only the rlib fails with "only
+        # metadata stub found").
+        LIBM_RLIB=$(sed -n 's/.*--extern libm=\([^ ]*\.rlib\).*/\1/p' "$BUILD_LOG" | tail -n 1)
+        LIBM_RMETA=$(sed -n 's/.*--extern libm=\([^ ]*\.rmeta\).*/\1/p' "$BUILD_LOG" | tail -n 1)
+        [ -n "$LIBM_RLIB" ] && [ -n "$LIBM_RMETA" ] || {
+            echo "could not read the libm rlib/rmeta paths from $BUILD_LOG" >&2; exit 1; }
+        # rustc.wasm sees guest `/` as the host root, so the extern paths have to
+        # be absolute; cargo sometimes prints them relative to the package.
+        for libm_file in "$LIBM_RLIB" "$LIBM_RMETA"; do
+            case "$libm_file" in
+                /*) ;;
+                *) echo "libm path is not absolute: $libm_file" >&2; exit 1 ;;
+            esac
+            [ -f "$libm_file" ] || { echo "libm artifact does not exist: $libm_file" >&2; exit 1; }
+        done
+
+        # Each program starts from a fresh incremental directory (explicitly
+        # requested with --fresh-incremental) and uses the same resident host
+        # path as bench. The host exits nonzero unless the incremental result
+        # matches the cold build: plugin (c) eval == 2.25, e_math mean/min/max
+        # against the same reference check as the A.2 harness.
+        run_incremental() {
+            local spec=$1 tag=$2
+            shift 2
+            echo "== incremental $spec"
+            "$HOST" incremental --rustc "$RUSTC_WASM" --sysroot "$PURE" \
+                --src "$STAGE_C/programs/$spec/src/lib.rs" --linker "$WILD" \
+                --work "$TOOL/stage-c/work-inc/$tag" \
+                --out "$TOOL/stage-c/work-inc/$tag/$spec.wasm" \
+                --cache-dir "$TOOL/stage-c/cache" \
+                --incremental "$TOOL/stage-c/work-inc/$tag/inc" \
+                --fresh-incremental --runs "${INCREMENTAL_RUNS:-5}" "$@" \
+                --json "$STAGE_C/results/incremental-$tag.json"
+        }
+        run_incremental c_plugin c
+        run_incremental e_math e \
+            --extern "libm=$LIBM_RLIB" --extern "libm=$LIBM_RMETA"
+        ;;
+    precompiled-check)
+        # Build a .cwasm for this host, load it, then prove that a mismatched
+        # sidecar and a truncated artifact both fall back to the .wasm. This is
+        # the regression check for the precompiled path (Track A).
+        need "$RUSTC_WASM"; need "$PURE"; need "$HOST"; need "$WILD"
+        PRE="$TOOL/stage-c/work-precompiled"
+        PC="$TOOL/target/stage-c-host/release/stage-c-precompile"
+        need "$PC"
+        mkdir -p "$PRE"
+        "$PC" precompile --wasm "$RUSTC_WASM" \
+            --out "$PRE/rustc.cwasm" --metadata "$PRE/rustc.cwasm.json"
+        common=(--rustc "$RUSTC_WASM" --sysroot "$PURE" \
+            --src "$STAGE_C/programs/c_plugin/src/lib.rs" --linker "$WILD" \
+            --work "$PRE" --out "$PRE/c_plugin.wasm" \
+            --cache-dir "$TOOL/stage-c/cache")
+        echo "== precompiled .cwasm load"
+        "$HOST" check "${common[@]}" --precompiled "$PRE/rustc.cwasm"
+        echo "== mismatched sidecar falls back"
+        cp "$PRE/rustc.cwasm" "$PRE/mismatch.cwasm"
+        python3 - "$PRE/rustc.cwasm.json" "$PRE/mismatch.cwasm.json" <<'PYEOF'
+import json
+import sys
+metadata = json.load(open(sys.argv[1], encoding="utf-8"))
+metadata["compatibility_hash"] = "00" * 32
+json.dump(metadata, open(sys.argv[2], "w", encoding="utf-8"), indent=2)
+PYEOF
+        "$HOST" check "${common[@]}" --precompiled "$PRE/mismatch.cwasm" \
+            2>&1 | tee "$PRE/mismatch.log"
+        grep -q "falling back to compiling" "$PRE/mismatch.log"
+        echo "== truncated .cwasm falls back"
+        head -c 4096 "$PRE/rustc.cwasm" > "$PRE/truncated.cwasm"
+        cp "$PRE/rustc.cwasm.json" "$PRE/truncated.cwasm.json"
+        "$HOST" check "${common[@]}" --precompiled "$PRE/truncated.cwasm" \
+            2>&1 | tee "$PRE/truncated.log"
+        grep -q "falling back to compiling" "$PRE/truncated.log"
+        echo "PASS precompiled-check: .cwasm loads; mismatched and truncated artifacts fall back"
+        ;;
     a2)
         need "$PURE"
         H="$TOOL/target/a2/harness/release/a2-harness"
@@ -94,7 +190,7 @@ case "${1:-check}" in
         "$H" bench_geom "$P/f_geometry.wasm" 40000 5
         ;;
     *)
-        echo "usage: $0 [build|plugins|check|a2check|bench|a2]" >&2
+        echo "usage: $0 [build|plugins|check|a2check|bench|a2|incremental|precompiled-check]" >&2
         exit 1
         ;;
 esac

@@ -1,0 +1,243 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stage C <stage-c@example.invalid>
+Date: Thu, 19 Nov 2026 15:18:58 +1030
+Subject: [PATCH] wasm: provide a process-local file-lock fallback
+
+WASI preview 1 has no file-locking API, so `File::try_lock` reports
+`ErrorKind::Unsupported` on wasm32-wasip1 and rustc's flock fallback is
+`flock/unsupported.rs`, which rejects every lock. Incremental compilation
+must create and lock a session directory at the start of every compile, so
+it fails immediately with "file locks not supported on this platform".
+
+Add a wasm fallback selected for `target_family = "wasm"`. It provides the
+same process-local exclusive/shared registry semantics as the Unix fallback
+in `flock/unix.rs`, but without the `fcntl` call, because there is no WASI
+preview 1 file-lock API to call. The lock file is still opened and kept open
+while the lock is held, matching the Unix fallback.
+
+WASI preview 1 cannot coordinate locks between processes. That is acceptable
+here because the stage-C host runs one rustc.wasm instance per process and
+does not share an incremental directory between running compiler processes;
+this limitation is documented at the top of the new module.
+
+The unit tests cover: an exclusive lock blocks a second exclusive and a
+shared lock in the same process; shared locks coexist while an exclusive
+lock is blocked; and dropping the last holder releases the path for an
+exclusive lock. They run on the host via `cfg(any(test, target_family =
+"wasm"))` because a wasm test binary cannot run in this build.
+
+Changed by the contributors to the rust_wasm repository.
+---
+ compiler/rustc_data_structures/src/flock.rs         |  10 ++++++++++
+ compiler/rustc_data_structures/src/flock/wasm.rs    | 181 +++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 191 insertions(+)
+
+diff --git a/compiler/rustc_data_structures/src/flock.rs b/compiler/rustc_data_structures/src/flock.rs
+index deb779a..98ca8d2 100644
+--- a/compiler/rustc_data_structures/src/flock.rs
++++ b/compiler/rustc_data_structures/src/flock.rs
+@@ -59,7 +59,17 @@ impl Lock {
+     }
+ }
+ 
++// WASI preview 1 has no file-locking API, so wasm targets need a fallback that
++// does not call `fcntl`/`flock`. The module is also compiled in test builds on
++// other hosts so its registry tests run there: wasm test binaries cannot run in
++// this repository's build, and the logic is platform-independent.
++#[cfg(any(test, target_family = "wasm"))]
++mod wasm;
++
+ cfg_select! {
++    target_family = "wasm" => {
++        use wasm as fallback;
++    }
+     unix => {
+         mod unix;
+         use unix as fallback;
+diff --git a/compiler/rustc_data_structures/src/flock/wasm.rs b/compiler/rustc_data_structures/src/flock/wasm.rs
+new file mode 100644
+index 0000000..9f52112
+--- /dev/null
++++ b/compiler/rustc_data_structures/src/flock/wasm.rs
+@@ -0,0 +1,181 @@
++//! Process-local file-lock fallback for wasm targets.
++//!
++//! WASI preview 1 has no file-locking API, so [`File::try_lock`] reports
++//! [`io::ErrorKind::Unsupported`] on `wasm32-wasip1`. This fallback gives the
++//! same exclusive/shared semantics as the Unix fallback in `flock/unix.rs`: a
++//! process-global registry keyed by path, with at most one exclusive holder or
++//! any number of shared holders at a time.
++//!
++//! Unlike the Unix fallback this does not call `fcntl`, because there is no
++//! system call to make. The lock is therefore only visible inside this
++//! process. WASI preview 1 cannot coordinate locks between processes; a host
++//! that ran several compiler processes against one incremental directory would
++//! need process-shared locking (for example `wasi:filesystem` lock types) for
++//! this fallback to be sound for it. The stage-C host keeps one rustc.wasm
++//! instance per process and never shares an incremental directory between
++//! processes while one is running, which is the case this fallback exists for.
++
++use std::collections::hash_map::Entry;
++use std::fs::File;
++use std::path::{Path, PathBuf};
++use std::sync::{LazyLock, Mutex};
++use std::io;
++
++use rustc_hash::FxHashMap;
++
++static LOCK_REGISTRY: LazyLock<Mutex<FxHashMap<PathBuf, LockState>>> =
++    LazyLock::new(|| Mutex::new(FxHashMap::default()));
++
++enum LockState {
++    /// Lock held exclusively. No other lock may be acquired until it is dropped.
++    Exclusive,
++    /// Number of live shared lock holders. This can be greater than one.
++    Shared(usize),
++}
++
++/// A lock scoped to this process; released when dropped.
++#[derive(Debug)]
++pub struct Lock {
++    path: PathBuf,
++    /// Keeping the lock file open for as long as the lock is held mirrors the
++    /// Unix fallback. The registry, not this handle, decides whether a lock is
++    /// taken.
++    _file: File,
++}
++
++impl Lock {
++    pub fn try_lock(p: &Path, file: File, exclusive: bool) -> io::Result<Lock> {
++        let mut locks = LOCK_REGISTRY.lock().unwrap();
++
++        match locks.entry(p.to_owned()) {
++            Entry::Occupied(mut state) => match state.get_mut() {
++                LockState::Exclusive => Err(io::ErrorKind::WouldBlock.into()),
++                LockState::Shared(holders) => {
++                    if exclusive {
++                        Err(io::ErrorKind::WouldBlock.into())
++                    } else {
++                        *holders += 1;
++                        Ok(Lock { path: p.to_owned(), _file: file })
++                    }
++                }
++            },
++            Entry::Vacant(vacant) => {
++                vacant.insert(if exclusive {
++                    LockState::Exclusive
++                } else {
++                    LockState::Shared(1)
++                });
++                Ok(Lock { path: p.to_owned(), _file: file })
++            }
++        }
++    }
++}
++
++impl Drop for Lock {
++    fn drop(&mut self) {
++        let mut locks = LOCK_REGISTRY.lock().unwrap();
++        match locks.get_mut(&self.path) {
++            Some(LockState::Exclusive) => {
++                locks.remove(&self.path);
++            }
++            Some(LockState::Shared(holders)) => {
++                *holders -= 1;
++                if *holders == 0 {
++                    locks.remove(&self.path);
++                }
++            }
++            None => {
++                // The only way to remove a registry entry is through this Drop
++                // impl, so the entry for a live lock cannot be missing.
++                unreachable!("flock registry entry disappeared while its lock was held");
++            }
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use std::fs::OpenOptions;
++    use std::sync::atomic::{AtomicU32, Ordering};
++
++    static NEXT_ID: AtomicU32 = AtomicU32::new(0);
++
++    /// A unique lock file named after the process and a counter, so tests are
++    /// independent under the test runner's threads and leave nothing behind.
++    struct TestLockFile {
++        dir: PathBuf,
++        path: PathBuf,
++    }
++
++    impl TestLockFile {
++        fn new() -> Self {
++            let id = NEXT_ID.fetch_add(1, Ordering::Relaxed);
++            let dir = std::env::temp_dir()
++                .join(format!("rustc-flock-wasm-{}-{id}", std::process::id()));
++            std::fs::create_dir_all(&dir).expect("create test directory");
++            let path = dir.join("lock");
++            std::fs::write(&path, b"").expect("create test lock file");
++            TestLockFile { dir, path }
++        }
++
++        fn open(&self) -> File {
++            OpenOptions::new()
++                .read(true)
++                .write(true)
++                .open(&self.path)
++                .expect("open test lock file")
++        }
++    }
++
++    impl Drop for TestLockFile {
++        fn drop(&mut self) {
++            if let Err(err) = std::fs::remove_dir_all(&self.dir) {
++                eprintln!("warning: cannot remove {}: {err}", self.dir.display());
++            }
++        }
++    }
++
++    #[test]
++    fn exclusive_blocks_exclusive_and_shared_until_dropped() {
++        let file = TestLockFile::new();
++        let exclusive =
++            Lock::try_lock(&file.path, file.open(), true).expect("first exclusive lock");
++
++        assert_eq!(
++            Lock::try_lock(&file.path, file.open(), true).unwrap_err().kind(),
++            io::ErrorKind::WouldBlock,
++        );
++        assert_eq!(
++            Lock::try_lock(&file.path, file.open(), false).unwrap_err().kind(),
++            io::ErrorKind::WouldBlock,
++        );
++
++        drop(exclusive);
++        let _reacquired =
++            Lock::try_lock(&file.path, file.open(), true).expect("lock after the first is dropped");
++    }
++
++    #[test]
++    fn shared_locks_coexist_and_block_exclusive_until_all_are_dropped() {
++        let file = TestLockFile::new();
++        let first = Lock::try_lock(&file.path, file.open(), false).expect("first shared lock");
++        let second = Lock::try_lock(&file.path, file.open(), false).expect("second shared lock");
++
++        assert_eq!(
++            Lock::try_lock(&file.path, file.open(), true).unwrap_err().kind(),
++            io::ErrorKind::WouldBlock,
++        );
++
++        drop(first);
++        assert_eq!(
++            Lock::try_lock(&file.path, file.open(), true).unwrap_err().kind(),
++            io::ErrorKind::WouldBlock,
++            "an exclusive lock must still fail while the second shared lock is held",
++        );
++
++        drop(second);
++        let _reacquired = Lock::try_lock(&file.path, file.open(), true)
++            .expect("exclusive lock after the last shared lock is dropped");
++    }
++}
