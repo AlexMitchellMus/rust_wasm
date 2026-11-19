@@ -1,0 +1,1 @@
+wasm: run the compiler and codegen coordinator on the calling thread

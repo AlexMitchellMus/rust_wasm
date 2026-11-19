@@ -1,0 +1,306 @@
+From 4795e5582a6e3103c87dfa807485ed3f84ee6fc2 Mon Sep 17 00:00:00 2001
+From: AlexMitchellMus <12004932+AlexMitchellMus@users.noreply.github.com>
+Date: Thu, 19 Nov 2026 13:43:59 +1030
+Subject: [PATCH] wasm: run compiler and codegen on the calling thread
+
+WebAssembly without threads has no way to spawn the compiler thread that
+rustc_interface normally creates, nor the codegen coordinator thread that
+rustc_codegen_ssa starts even when there is a single codegen unit. A
+wasm32-wasip1 host therefore cannot run the compiler at all.
+
+When the compiler itself is built for wasm32, run the compiler closure
+directly on the calling thread and run codegen synchronously as units are
+submitted: optimize and codegen each module, then finalize them in `join`.
+The guest stack is sized at link time because there is no thread builder.
+
+Tested by building rustc for wasm32-wasip1 (non-threads) and running it
+under Wasmtime with plain WASI preview 1: the compiler imports no
+wasi:thread-spawn function and produces a working object file.
+
+License: MIT OR Apache-2.0, as a contribution to the Rust project.
+---
+ compiler/rustc_codegen_ssa/src/back/write.rs | 121 ++++++++++++++++---
+ compiler/rustc_interface/src/util.rs         |  53 ++++----
+ 2 files changed, 136 insertions(+), 38 deletions(-)
+
+diff --git a/compiler/rustc_codegen_ssa/src/back/write.rs b/compiler/rustc_codegen_ssa/src/back/write.rs
+index 24fcab7218..922a10e160 100644
+--- a/compiler/rustc_codegen_ssa/src/back/write.rs
++++ b/compiler/rustc_codegen_ssa/src/back/write.rs
+@@ -437,16 +437,17 @@ pub(crate) fn start_async_codegen<B: WriteBackendMethods>(
+         coordinator_send.clone(),
+     );
+ 
++    let (future, sync) = match coordinator_thread {
++        CoordinatorFuture::Sync(sync) => (None, Some(std::cell::RefCell::new(sync))),
++        future => (Some(future), None),
++    };
++
+     OngoingCodegen {
+         backend,
+ 
+         codegen_worker_receive,
+         shared_emitter_main,
+-        coordinator: Coordinator {
+-            sender: coordinator_send,
+-            future: Some(coordinator_thread),
+-            phantom: PhantomData,
+-        },
++        coordinator: Coordinator { sender: coordinator_send, future, sync, phantom: PhantomData },
+         output_filenames: Arc::clone(tcx.output_filenames(())),
+     }
+ }
+@@ -1211,7 +1212,7 @@ fn start_executing_work<B: WriteBackendMethods>(
+     allocator_config: Arc<ModuleConfig>,
+     mut allocator_module: Option<ModuleCodegen<B::Module>>,
+     coordinator_send: Sender<Message<B>>,
+-) -> thread::JoinHandle<Result<MaybeLtoModules<B>, ()>> {
++) -> CoordinatorFuture<B> {
+     let sess = tcx.sess;
+     let prof = sess.prof.clone();
+     let incr_comp_session =
+@@ -1283,6 +1284,20 @@ fn start_executing_work<B: WriteBackendMethods>(
+         pointer_size: tcx.data_layout.pointer_size(),
+     };
+ 
++    // wasm32-wasip1 has no threads. There is no coordinator thread to overlap
++    // codegen with; codegen units are compiled as they are submitted and
++    // `join` finalizes them, all on the calling thread.
++    if cfg!(target_arch = "wasm32") {
++        return CoordinatorFuture::Sync(SyncCodegen {
++            cgcx,
++            prof,
++            shared_emitter,
++            allocator_config,
++            allocator_module,
++            compiled_modules: Vec::new(),
++        });
++    }
++
+     // This is the "main loop" of parallel work happening for parallel codegen.
+     // It's here that we manage parallelism, schedule work, and work with
+     // messages coming from clients.
+@@ -1774,10 +1789,12 @@ enum CodegenState {
+             }),
+         }))
+     };
+-    return std::thread::Builder::new()
+-        .name("coordinator".to_owned())
+-        .spawn(f)
+-        .expect("failed to spawn coordinator thread");
++    return CoordinatorFuture::Thread(
++        std::thread::Builder::new()
++            .name("coordinator".to_owned())
++            .spawn(f)
++            .expect("failed to spawn coordinator thread"),
++    );
+ 
+     // A heuristic that determines if we have enough LLVM WorkItems in the
+     // queue so that the main thread can do LLVM work instead of codegen
+@@ -2071,22 +2088,82 @@ fn check(&self, sess: &Session, blocking: bool) {
+     }
+ }
+ 
++/// On threadless targets (wasm) the coordinator's work is performed directly
++/// on the calling thread, one codegen unit at a time, with no channels.
++struct SyncCodegen<B: WriteBackendMethods> {
++    cgcx: CodegenContext,
++    prof: SelfProfilerRef,
++    shared_emitter: SharedEmitter,
++    allocator_config: Arc<ModuleConfig>,
++    allocator_module: Option<ModuleCodegen<B::Module>>,
++    compiled_modules: Vec<CompiledModule>,
++}
++
++impl<B: WriteBackendMethods> SyncCodegen<B> {
++    fn codegen(&mut self, mut module: ModuleCodegen<B::Module>) {
++        let config = Arc::clone(&self.cgcx.module_config);
++        B::optimize(&self.cgcx, &self.prof, &self.shared_emitter, &mut module, &config);
++        let compiled = B::codegen(&self.cgcx, &self.prof, &self.shared_emitter, module, &config);
++        self.compiled_modules.push(compiled);
++    }
++
++    fn finish(mut self) -> MaybeLtoModules<B> {
++        let allocator_module = self.allocator_module.take().map(|mut module| {
++            B::optimize(
++                &self.cgcx,
++                &self.prof,
++                &self.shared_emitter,
++                &mut module,
++                &self.allocator_config,
++            );
++            B::codegen(&self.cgcx, &self.prof, &self.shared_emitter, module, &self.allocator_config)
++        });
++        MaybeLtoModules::NoLto(CompiledModules { modules: self.compiled_modules, allocator_module })
++    }
++}
++
++/// The result of starting codegen: either a running coordinator thread, or,
++/// on threadless targets (wasm), the synchronous codegen state.
++enum CoordinatorFuture<B: WriteBackendMethods> {
++    Thread(thread::JoinHandle<Result<MaybeLtoModules<B>, ()>>),
++    Sync(SyncCodegen<B>),
++}
++
+ pub struct Coordinator<B: WriteBackendMethods> {
+     sender: Sender<Message<B>>,
+-    future: Option<thread::JoinHandle<Result<MaybeLtoModules<B>, ()>>>,
++    future: Option<CoordinatorFuture<B>>,
++    /// Present only when codegen runs synchronously (wasm, where there is no
++    /// coordinator thread).
++    sync: Option<std::cell::RefCell<SyncCodegen<B>>>,
+     // Only used for the Message type.
+     phantom: PhantomData<B>,
+ }
+ 
+ impl<B: WriteBackendMethods> Coordinator<B> {
+     fn join(mut self) -> std::thread::Result<Result<MaybeLtoModules<B>, ()>> {
+-        self.future.take().unwrap().join()
++        if let Some(sync) = self.sync.take() {
++            return Ok(Ok(sync.into_inner().finish()));
++        }
++        match self.future.take().unwrap() {
++            CoordinatorFuture::Thread(future) => future.join(),
++            CoordinatorFuture::Sync(sync) => Ok(Ok(sync.finish())),
++        }
++    }
++
++    /// Codegen a submitted module synchronously on wasm.
++    fn codegen_submitted_module(&self, module: ModuleCodegen<B::Module>, cost: u64) {
++        if let Some(sync) = &self.sync {
++            sync.borrow_mut().codegen(module);
++            return;
++        }
++        let llvm_work_item = WorkItem::Optimize(module);
++        drop(self.sender.send(Message::CodegenDone::<B> { llvm_work_item, cost }));
+     }
+ }
+ 
+ impl<B: WriteBackendMethods> Drop for Coordinator<B> {
+     fn drop(&mut self) {
+-        if let Some(future) = self.future.take() {
++        if let Some(CoordinatorFuture::Thread(future)) = self.future.take() {
+             // If we haven't joined yet, signal to the coordinator that it should spawn no more
+             // work, and wait for worker threads to finish.
+             drop(self.sender.send(Message::CodegenAborted::<B>));
+@@ -2113,7 +2190,13 @@ pub fn join(
+         incr_comp_session: Option<&IncrCompSession>,
+         crate_info: &CrateInfo,
+     ) -> (CompiledModules, WorkProductMap) {
+-        self.shared_emitter_main.check(sess, true);
++        // With synchronous codegen the emitter is owned by the coordinator
++        // state until `join` consumes it, so a blocking check here would wait
++        // forever for the channel to close. The post-join checks below report
++        // the same diagnostics.
++        if self.coordinator.sync.is_none() {
++            self.shared_emitter_main.check(sess, true);
++        }
+ 
+         let maybe_lto_modules = sess.time("join_worker_thread", || match self.coordinator.join() {
+             Ok(Ok(maybe_lto_modules)) => maybe_lto_modules,
+@@ -2212,6 +2295,10 @@ pub fn join(
+     }
+ 
+     pub(crate) fn codegen_finished(&self, tcx: TyCtxt<'_>) {
++        if self.coordinator.sync.is_some() {
++            self.check_for_errors(tcx.sess);
++            return;
++        }
+         self.wait_for_signal_to_codegen_item();
+         self.check_for_errors(tcx.sess);
+         drop(self.coordinator.sender.send(Message::CodegenComplete::<B>));
+@@ -2222,6 +2309,9 @@ pub(crate) fn check_for_errors(&self, sess: &Session) {
+     }
+ 
+     pub(crate) fn wait_for_signal_to_codegen_item(&self) {
++        if self.coordinator.sync.is_some() {
++            return;
++        }
+         match self.codegen_worker_receive.recv() {
+             Ok(CguMessage) => {
+                 // Ok to proceed.
+@@ -2239,8 +2329,7 @@ pub(crate) fn submit_codegened_module_to_llvm<B: WriteBackendMethods>(
+     module: ModuleCodegen<B::Module>,
+     cost: u64,
+ ) {
+-    let llvm_work_item = WorkItem::Optimize(module);
+-    drop(coordinator.sender.send(Message::CodegenDone::<B> { llvm_work_item, cost }));
++    coordinator.codegen_submitted_module(module, cost);
+ }
+ 
+ pub(crate) fn submit_post_lto_module_to_llvm<B: WriteBackendMethods>(
+diff --git a/compiler/rustc_interface/src/util.rs b/compiler/rustc_interface/src/util.rs
+index d1110ecf33..82a8da0b55 100644
+--- a/compiler/rustc_interface/src/util.rs
++++ b/compiler/rustc_interface/src/util.rs
+@@ -203,36 +203,45 @@ fn run_in_thread_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
+     extra_symbols: &[&'static str],
+     f: F,
+ ) -> R {
++    // We build the session globals and run `f` in the same place, because
++    // `SessionGlobals` does not impl `Send` in the non-parallel compiler.
++    let run = move || {
++        rustc_span::create_session_globals_then(edition, extra_symbols, Some(sm_inputs), || {
++            f(CurrentGcx::new())
++        })
++    };
++
++    // wasm32-wasip1 has no threads, so rustc cannot spawn its usual compiler
++    // thread. Run the compiler on the calling thread instead; its stack is
++    // fixed at link time, so `thread_stack_size` does not apply.
++    #[cfg(target_arch = "wasm32")]
++    {
++        let _ = thread_stack_size;
++        run()
++    }
++
+     // The "thread pool" is a single spawned thread in the non-parallel
+     // compiler. We run on a spawned thread instead of the main thread (a) to
+     // provide control over the stack size, and (b) to increase similarity with
+     // the parallel compiler, in particular to ensure there is no accidental
+     // sharing of data between the main thread and the compilation thread
+     // (which might cause problems for the parallel compiler).
+-    let builder = thread::Builder::new().name("rustc".to_string()).stack_size(thread_stack_size);
++    #[cfg(not(target_arch = "wasm32"))]
++    {
++        let builder =
++            thread::Builder::new().name("rustc".to_string()).stack_size(thread_stack_size);
+ 
+-    // We build the session globals and run `f` on the spawned thread, because
+-    // `SessionGlobals` does not impl `Send` in the non-parallel compiler.
+-    thread::scope(|s| {
+-        // `unwrap` is ok here because `spawn_scoped` only panics if the thread
+-        // name contains null bytes.
+-        let r = builder
+-            .spawn_scoped(s, move || {
+-                rustc_span::create_session_globals_then(
+-                    edition,
+-                    extra_symbols,
+-                    Some(sm_inputs),
+-                    || f(CurrentGcx::new()),
+-                )
+-            })
+-            .unwrap()
+-            .join();
++        thread::scope(|s| {
++            // `unwrap` is ok here because `spawn_scoped` only panics if the thread
++            // name contains null bytes.
++            let r = builder.spawn_scoped(s, run).unwrap().join();
+ 
+-        match r {
+-            Ok(v) => v,
+-            Err(e) => std::panic::resume_unwind(e),
+-        }
+-    })
++            match r {
++                Ok(v) => v,
++                Err(e) => std::panic::resume_unwind(e),
++            }
++        })
++    }
+ }
+ 
+ pub(crate) fn run_in_thread_pool_with_globals<F: FnOnce(CurrentGcx) -> R + Send, R: Send>(
+-- 
+2.54.0 (Apple Git-157)
+

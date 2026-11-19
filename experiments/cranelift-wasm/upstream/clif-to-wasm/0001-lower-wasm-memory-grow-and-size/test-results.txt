@@ -1,0 +1,110 @@
+# Test results: clif-to-wasm memory.grow / memory.size
+
+Upstream: ryancbuckley/clif-to-wasm `main`
+- commit `0e4e0458f5a190a7fcdbb2298d9ad780678c44bc`
+- date 2026-11-14 20:54:32 -0500 ("Cargo upgrade")
+- clone: `toolchain/upstream/clif-to-wasm` (shallow; unshallowed for history)
+- patch branch: `upstream-memory`, commit `9878af41ba5ad91f45148ed45c1b3c9dc8fe5005`
+- base: the same `0e4e0458` commit; upstream had not moved
+
+## Environment
+
+- host: macOS arm64
+- isolated `RUSTUP_HOME=toolchain/rustup`,
+  `CARGO_HOME=toolchain/cargo`
+- `RUSTUP_TOOLCHAIN=1.99.1` (`rustc 1.99.1 (58cf8f9c3 2026-10-13)`)
+- `CARGO_TARGET_DIR=toolchain/upstream/target-clif`
+- rustfmt: nightly-2026-10-19 rustfmt 1.11.0-nightly (b6eeb93c99)
+
+## Commands and results
+
+### cargo fmt --check (PASS)
+
+```sh
+cd toolchain/upstream/clif-to-wasm
+RUSTUP_HOME=$CRANELIFT/toolchain/rustup \
+CARGO_HOME=$CRANELIFT/toolchain/cargo \
+RUSTUP_TOOLCHAIN=nightly-2026-10-19 \
+cargo fmt --check
+```
+
+Exit 0.
+
+Note: the 1.99.1 toolchain in the isolated rustup is minimal and has no
+`cargo-fmt`; using the installed nightly rustfmt is equivalent for the
+`--check` purpose.
+
+### cargo test --all-features (PASS)
+
+```sh
+cd toolchain/upstream/clif-to-wasm
+RUSTUP_HOME=$CRANELIFT/toolchain/rustup \
+CARGO_HOME=$CRANELIFT/toolchain/cargo \
+RUSTUP_TOOLCHAIN=1.99.1 \
+CARGO_TARGET_DIR=$CRANELIFT/toolchain/upstream/target-clif \
+cargo test --all-features
+```
+
+Result:
+
+```text
+Running tests/memory.rs
+running 3 tests
+test wrong_signature_is_rejected ... ok
+test memory64_is_rejected ... ok
+test memory_size_and_grow_instructions ... ok
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out
+
+unittests src/lib.rs       20 passed; 0 failed
+tests/cfg_fuzz.rs           1 passed; 0 failed
+tests/clif.rs               2 passed; 0 failed
+tests/float.rs              6 passed; 0 failed
+tests/fuzz.rs               1 passed; 0 failed
+tests/kernels.rs            1 passed; 0 failed
+tests/memory.rs             3 passed; 0 failed
+tests/module.rs             7 passed; 0 failed
+tests/narrow_vectors.rs     2 passed; 0 failed
+tests/object.rs            10 passed; 0 failed
+tests/simd_ops.rs           1 passed; 0 failed
+doctests                    4 passed; 0 failed
+all doctests ran in 1.36s
+real 95.46
+user 178.20
+sys 17.88
+EXIT=0
+```
+
+Every test binary and doctest run passed. The new `tests/memory.rs` accounts
+for 3 of them. A focused rerun after the final amend also passed:
+
+```text
+cargo test --all-features --test memory
+test result: ok. 3 passed; 0 failed
+real 1.68
+```
+
+### Re-pointing against the pinned revision (PASS)
+
+Clean snapshot: `toolchain/upstream/pinned-clif-base` from
+`git archive 0e4e0458` (no working-tree patch).
+
+```sh
+cd toolchain/upstream/pinned-clif-base
+git apply --check <refreshed patch>
+# exit 0
+```
+
+The pinned `toolchain/clif-to-wasm` checkout has the stage-C patch applied in
+its working tree, so applying the same patch there is a no-op/conflict; the
+clean `0e4e0458` snapshot is the meaningful check. Default 3-line context
+applies without offsets.
+
+## What was not run, and why
+
+- **clippy**: not run; no clippy component in the isolated 1.99.1 toolchain,
+  and the change is covered by `cargo test --all-features` plus rustfmt.
+- **wasm32 target execution**: not applicable to this crate's tests; the
+  emitted wasm is validated and executed by Wasmtime on the host in
+  `tests/memory.rs`.
+- **MSRV 1.97 check**: not run; the newer 1.99.1 was used. The patch uses no
+  features newer than the crate's existing edition-2024 code.

@@ -1,0 +1,1 @@
+wasm: lower memory.grow and memory.size intrinsics

@@ -1,0 +1,383 @@
+From 9878af41ba5ad91f45148ed45c1b3c9dc8fe5005 Mon Sep 17 00:00:00 2001
+From: AlexMitchellMus <12004932+AlexMitchellMus@users.noreply.github.com>
+Date: Wed, 18 Nov 2026 22:46:26 +1030
+Subject: [PATCH] Lower wasm memory.grow and memory.size calls
+
+Cranelift has no opcode for wasm's memory.grow or memory.size, so a
+frontend cannot express them as instructions. Recognize direct calls to
+two reserved test-case names and replace them with the instructions
+instead of a call.
+
+The reserved names carry no signature ambiguity beyond the call's
+signature, which is checked against the instruction's operand types.
+Calls must not be tail calls, which cannot return the instruction's
+result.
+
+This lets cg_clif lower core::arch::wasm32::{memory_grow,memory_size}
+without a Cranelift change; the accompanying cg_clif patch calls these
+names.
+
+License: Apache-2.0 WITH LLVM-exception, as a contribution to
+clif-to-wasm.
+---
+ src/env.rs            |   3 +
+ src/lib.rs            |   2 +
+ src/lower.rs          |  67 +++++++++++++++++++-
+ src/wasm_intrinsic.rs |  68 ++++++++++++++++++++
+ tests/memory.rs       | 143 ++++++++++++++++++++++++++++++++++++++++++
+ 5 files changed, 281 insertions(+), 2 deletions(-)
+ create mode 100644 src/wasm_intrinsic.rs
+ create mode 100644 tests/memory.rs
+
+diff --git a/src/env.rs b/src/env.rs
+index 0719eda..f1e3fae 100644
+--- a/src/env.rs
++++ b/src/env.rs
+@@ -17,6 +17,9 @@ pub enum Name<'func> {
+     /// A user-defined name, from the function's table of named functions.
+     User(&'func UserExternalName),
+     /// A test-case name (`%name` in CLIF text).
++    ///
++    /// [`WasmIntrinsic`](crate::WasmIntrinsic) reserves a few such names for
++    /// wasm instructions that have no Cranelift opcode.
+     TestCase(&'func str),
+     /// A Cranelift runtime library call.
+     LibCall(LibCall),
+diff --git a/src/lib.rs b/src/lib.rs
+index 8a28ea2..c1bcb1c 100644
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -110,6 +110,7 @@ pub mod object;
+ #[cfg(feature = "module")]
+ pub mod object_module;
+ mod structure;
++mod wasm_intrinsic;
+ mod wasm_types;
+ 
+ pub use compile::{AddendKind, CompiledFunction, Reloc, RelocKind, compile_function};
+@@ -120,6 +121,7 @@ pub use module::{
+     Export, FuncIndex, GlobalIndex, MemoryIndex, ModuleBuilder, TableIndex, TagIndex, TypeIndex,
+ };
+ pub use object::SymbolId;
++pub use wasm_intrinsic::WasmIntrinsic;
+ pub use wasm_types::{wasm_signature, wasm_type};
+ 
+ // Compile-test the README's examples.
+diff --git a/src/lower.rs b/src/lower.rs
+index e0060a5..4183361 100644
+--- a/src/lower.rs
++++ b/src/lower.rs
+@@ -8,11 +8,12 @@
+ use crate::emit::{self, CallKind, Emitter, w};
+ use crate::locals::Local;
+ use crate::lower_float::FloatCmpOps;
+-use crate::{Name, Result, SymbolValue, error, wasm_types};
++use crate::{Name, Result, SymbolValue, WasmIntrinsic, error, wasm_types};
+ use alloc::format;
+ use cranelift_codegen::ir::condcodes::IntCC;
+ use cranelift_codegen::ir::{
+-    GlobalValueData, Inst, InstructionData as D, MemFlags, Opcode, Type, types,
++    DataFlowGraph, ExternalName, FuncRef, GlobalValueData, Inst, InstructionData as D, MemFlags,
++    Opcode, Signature, Type, types,
+ };
+ use wasm_encoder::{Instruction as I, MemArg, ValType};
+ 
+@@ -756,6 +757,17 @@ impl Emitter<'_> {
+             (Opcode::Call | Opcode::ReturnCall, D::Call { func_ref, .. }) => {
+                 let sig = &dfg.signatures[dfg.ext_funcs[func_ref].signature];
+                 let tail = op == Opcode::ReturnCall;
++                if let Some(intrinsic) = wasm_intrinsic(dfg, func_ref) {
++                    if tail {
++                        return error::unsupported(format!(
++                            "tail call to wasm intrinsic {}",
++                            intrinsic.symbol_name()
++                        ));
++                    }
++                    self.wasm_intrinsic(intrinsic, sig, args.len())?;
++                    self.call_result(inst)?;
++                    return Ok(());
++                }
+                 let copies = self.call_args(sig, args.len(), tail)?;
+                 self.byval_copies(copies);
+                 let idx = self.callee_index(func_ref)?;
+@@ -1251,3 +1263,54 @@ impl Emitter<'_> {
+         Ok(())
+     }
+ }
++
++/// The wasm intrinsic selected by a direct call to a reserved test-case name.
++fn wasm_intrinsic(dfg: &DataFlowGraph, func_ref: FuncRef) -> Option<WasmIntrinsic> {
++    let ExternalName::TestCase(name) = &dfg.ext_funcs[func_ref].name else {
++        return None;
++    };
++    WasmIntrinsic::from_symbol_name(core::str::from_utf8(name.raw()).ok()?)
++}
++
++impl Emitter<'_> {
++    /// Lower a call to a [`WasmIntrinsic`] to the corresponding instruction.
++    fn wasm_intrinsic(
++        &mut self,
++        intrinsic: WasmIntrinsic,
++        sig: &Signature,
++        nargs: usize,
++    ) -> Result<()> {
++        if self.config.module.address_type != crate::AddressType::I32 {
++            return error::unsupported(format!("{} with a 64-bit memory", intrinsic.symbol_name()));
++        }
++        let (params, results) = intrinsic.signature();
++        let matches_signature = sig.params.len() == params.len()
++            && sig
++                .params
++                .iter()
++                .zip(params)
++                .all(|(p, &t)| p.value_type == t)
++            && sig.returns.len() == results.len()
++            && sig
++                .returns
++                .iter()
++                .zip(results)
++                .all(|(r, &t)| r.value_type == t);
++        if !matches_signature || nargs != params.len() {
++            return error::unsupported(format!(
++                "call to {} with the wrong signature",
++                intrinsic.symbol_name()
++            ));
++        }
++        match intrinsic {
++            WasmIntrinsic::MemoryGrow => {
++                self.operand()?;
++                self.ins(I::MemoryGrow(self.config.module.memory_index.0));
++            }
++            WasmIntrinsic::MemorySize => {
++                self.ins(I::MemorySize(self.config.module.memory_index.0));
++            }
++        }
++        Ok(())
++    }
++}
+diff --git a/src/wasm_intrinsic.rs b/src/wasm_intrinsic.rs
+new file mode 100644
+index 0000000..93fbe80
+--- /dev/null
++++ b/src/wasm_intrinsic.rs
+@@ -0,0 +1,68 @@
++//! WebAssembly instructions that have no Cranelift opcode.
++//!
++//! Cranelift's IR is ISA-neutral and has no `memory.grow` or `memory.size`.
++//! A frontend that needs them calls a function with one of the reserved
++//! [`ExternalName::TestCase`](cranelift_codegen::ir::ExternalName::TestCase)
++//! names below; [`compile_function`](crate::compile_function) replaces the call
++//! with the instruction. These are reserved names, so no environment entry or
++//! module symbol is needed; a frontend only has to call a function with the
++//! right name and signature.
++//!
++//! ```text
++//! function %size() -> i32 {
++//!     fn0 = %__clif_to_wasm_memory_size() -> i32
++//! block0:
++//!     v0 = call fn0()
++//!     return v0
++//! }
++//! ```
++//!
++//! The calls must have the exact signature shown for the instruction
++//! (`(i32) -> i32` for grow, `() -> i32` for size) and must not be tail
++//! calls. They apply to
++//! [`ModuleLayout::memory_index`](crate::ModuleLayout::memory_index) and only
++//! to a 32-bit memory.
++
++use cranelift_codegen::ir::{Type, types};
++
++/// A wasm instruction selected by a reserved call target instead of a
++/// Cranelift instruction.
++#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
++#[non_exhaustive]
++pub enum WasmIntrinsic {
++    /// `memory.grow`, from a call to `__clif_to_wasm_memory_grow`:
++    /// `(i32) -> i32`, returning the previous size in pages or -1 on failure.
++    MemoryGrow,
++    /// `memory.size`, from a call to `__clif_to_wasm_memory_size`:
++    /// `() -> i32`, the current size in pages.
++    MemorySize,
++}
++
++impl WasmIntrinsic {
++    /// All intrinsics, for lookups.
++    const ALL: [WasmIntrinsic; 2] = [WasmIntrinsic::MemoryGrow, WasmIntrinsic::MemorySize];
++
++    /// The reserved symbol name that selects this instruction.
++    pub const fn symbol_name(self) -> &'static str {
++        match self {
++            WasmIntrinsic::MemoryGrow => "__clif_to_wasm_memory_grow",
++            WasmIntrinsic::MemorySize => "__clif_to_wasm_memory_size",
++        }
++    }
++
++    /// The intrinsic selected by `name`, if any.
++    pub fn from_symbol_name(name: &str) -> Option<Self> {
++        Self::ALL
++            .into_iter()
++            .find(|intrinsic| intrinsic.symbol_name() == name)
++    }
++
++    /// The call signature this intrinsic requires.
++    pub(crate) fn signature(self) -> (&'static [Type], &'static [Type]) {
++        const I32: &[Type] = &[types::I32];
++        match self {
++            WasmIntrinsic::MemoryGrow => (I32, I32),
++            WasmIntrinsic::MemorySize => (&[], I32),
++        }
++    }
++}
+diff --git a/tests/memory.rs b/tests/memory.rs
+new file mode 100644
+index 0000000..60c6dcd
+--- /dev/null
++++ b/tests/memory.rs
+@@ -0,0 +1,143 @@
++//! `memory.size` / `memory.grow` lowering, selected by calls to reserved
++//! symbols. The CLIF parser must accept these test-case names,
++//! and the emitted wasm must contain the corresponding instructions (not
++//! calls) and grow a real memory.
++
++mod harness;
++
++use clif_to_wasm::Config;
++use wasmparser::{Operator, Parser, Payload};
++use wasmtime::{Engine, Instance, Module, Store};
++
++const CLIF: &str = "
++function %size() -> i32 {
++    fn0 = %__clif_to_wasm_memory_size() -> i32
++block0:
++    v0 = call fn0()
++    return v0
++}
++
++function %grow(i32) -> i32 {
++    fn0 = %__clif_to_wasm_memory_grow(i32) -> i32
++block0(v0: i32):
++    v1 = call fn0(v0)
++    return v1
++}
++
++function %size_after_grow(i32) -> i32 {
++    fn0 = %__clif_to_wasm_memory_size() -> i32
++    fn1 = %__clif_to_wasm_memory_grow(i32) -> i32
++block0(v0: i32):
++    v1 = call fn1(v0)
++    v2 = call fn0()
++    return v2
++}
++";
++
++fn count_intrinsics(wasm: &[u8]) -> (usize, usize) {
++    let mut size = 0;
++    let mut grow = 0;
++    for payload in Parser::new(0).parse_all(wasm) {
++        if let Payload::CodeSectionEntry(body) = payload.unwrap() {
++            for op in body.get_operators_reader().unwrap() {
++                match op.unwrap() {
++                    Operator::MemorySize { mem } => {
++                        assert_eq!(mem, 0);
++                        size += 1;
++                    }
++                    Operator::MemoryGrow { mem } => {
++                        assert_eq!(mem, 0);
++                        grow += 1;
++                    }
++                    _ => {}
++                }
++            }
++        }
++    }
++    (size, grow)
++}
++
++#[test]
++fn memory_size_and_grow_instructions() {
++    let funcs = cranelift_reader::parse_functions(CLIF).unwrap();
++    let (wasm, unsupported) = harness::compile_module(&funcs, &Config::default());
++    assert!(unsupported.is_empty(), "{unsupported:?}");
++    harness::validate(&wasm).unwrap();
++
++    let (size, grow) = count_intrinsics(&wasm);
++    assert_eq!((size, grow), (2, 2), "emitted instructions");
++
++    let engine = Engine::default();
++    let module = Module::new(&engine, &wasm).unwrap();
++    let mut store = Store::new(&engine, ());
++    let instance = Instance::new(&mut store, &module, &[]).unwrap();
++    let size_fn = instance
++        .get_typed_func::<(), i32>(&mut store, "size")
++        .unwrap();
++    let grow_fn = instance
++        .get_typed_func::<i32, i32>(&mut store, "grow")
++        .unwrap();
++    let after_fn = instance
++        .get_typed_func::<i32, i32>(&mut store, "size_after_grow")
++        .unwrap();
++
++    assert_eq!(
++        size_fn.call(&mut store, ()).unwrap(),
++        harness::MEMORY_PAGES as i32
++    );
++    // The first growth returns the size before growing.
++    assert_eq!(
++        grow_fn.call(&mut store, 2).unwrap(),
++        harness::MEMORY_PAGES as i32
++    );
++    assert_eq!(
++        size_fn.call(&mut store, ()).unwrap(),
++        harness::MEMORY_PAGES as i32 + 2
++    );
++    // Growing inside the callee reports the already-grown size.
++    assert_eq!(
++        after_fn.call(&mut store, 1).unwrap(),
++        harness::MEMORY_PAGES as i32 + 3
++    );
++
++    // The new pages are real memory.
++    let memory = instance.get_memory(&mut store, "memory").unwrap();
++    let new_page = (harness::MEMORY_PAGES + 3) as usize * 65536;
++    memory.write(&mut store, new_page - 8, b"growable").unwrap();
++    let mut back = [0u8; 8];
++    memory.read(&store, new_page - 8, &mut back).unwrap();
++    assert_eq!(&back, b"growable");
++}
++
++#[test]
++fn wrong_signature_is_rejected() {
++    let clif = "
++function %grow_i64(i64) -> i32 {
++    fn0 = %__clif_to_wasm_memory_grow(i64) -> i32
++block0(v0: i64):
++    v1 = call fn0(v0)
++    return v1
++}
++";
++    let funcs = cranelift_reader::parse_functions(clif).unwrap();
++    let (wasm, unsupported) = harness::compile_module(&funcs, &Config::default());
++    assert_eq!(unsupported.len(), 1, "{unsupported:?}");
++    assert!(
++        unsupported[0].contains("wrong signature"),
++        "{unsupported:?}"
++    );
++    // The harness substitutes a valid stub, so the module still validates.
++    harness::validate(&wasm).unwrap();
++}
++
++#[test]
++fn memory64_is_rejected() {
++    let funcs = cranelift_reader::parse_functions(CLIF).unwrap();
++    let config = harness::config(|c| c.module.address_type = clif_to_wasm::AddressType::I64);
++    let (wasm, unsupported) = harness::compile_module(&funcs, &config);
++    assert_eq!(unsupported.len(), 3, "{unsupported:?}");
++    for problem in &unsupported {
++        assert!(problem.contains("64-bit memory"), "{problem}");
++    }
++    harness::validate(&wasm).unwrap();
++}
+-- 
+2.54.0 (Apple Git-157)
+

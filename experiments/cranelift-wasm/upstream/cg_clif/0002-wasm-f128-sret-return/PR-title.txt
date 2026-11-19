@@ -1,0 +1,1 @@
+wasm: return f128 through an sret pointer, matching the C ABI
