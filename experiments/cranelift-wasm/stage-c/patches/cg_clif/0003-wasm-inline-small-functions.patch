@@ -21,13 +21,16 @@ operate on, which keeps the CLIF private to base.rs. Correctness rests on the
 clif-to-wasm policy: inlining never moves a memory access, call, trap or branch
 into or out of a callee.
 ---
+
 diff --git a/src/base.rs b/src/base.rs
 --- a/src/base.rs
 +++ b/src/base.rs
-@@ -32,7 +32,24 @@
+@@ -30,6 +30,24 @@
+     clif_comments: CommentWriter,
+     func_debug_cx: Option<FunctionDebugContext>,
      inline_asm: String,
- }
- 
++}
++
 +impl CodegenedFunction {
 +    /// The body to offer for inlining elsewhere, if it is small enough.
 +    pub(crate) fn inlinable_body(&self) -> Option<&Function> {
@@ -37,18 +40,16 @@ diff --git a/src/base.rs b/src/base.rs
 +            None
 +        }
 +    }
- 
++
 +    /// Inline this function's direct calls to the tiny leaf functions in
 +    /// `callees`.
 +    pub(crate) fn inline_small_calls(&mut self, callees: &[Function]) -> Result<bool, String> {
 +        clif_to_wasm::inline_small_leaf_functions(&mut self.func, callees)
 +            .map_err(|e| format!("{}: {e}", self.symbol_name))
 +    }
-+}
-+
+ }
+ 
  pub(crate) fn codegen_fn<'tcx>(
-     tcx: TyCtxt<'tcx>,
-     cgu_name: Symbol,
 diff --git a/src/driver/aot.rs b/src/driver/aot.rs
 --- a/src/driver/aot.rs
 +++ b/src/driver/aot.rs
