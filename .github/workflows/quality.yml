@@ -25,6 +25,10 @@ permissions:
 
 jobs:
   review-scan:
+    # The job publishes the full scan log to the ci-logs pre-release, so it
+    # needs write; the workflow default above stays read-only.
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
@@ -47,4 +51,26 @@ jobs:
       - name: Review scan
         env:
           CARGO_TARGET_DIR: target-quality
-        run: agents/scripts/review-scan.sh
+        run: |
+          bash ci/build-with-diagnostics.sh \
+            "${RUNNER_TEMP}/quality.log" \
+            bash agents/scripts/review-scan.sh
+
+      # Publish the full log even when the scan fails, so it can be read
+      # without signing in to GitHub (the rolling ci-logs pre-release).
+      - name: publish scan log
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          bash ci/publish-build-log.sh \
+            "${RUNNER_TEMP}/quality.log" quality
+
+      # Surface the public log URL on the failed check itself: job logs need
+      # a signed-in account, the ci-logs asset does not.
+      - name: link the published log
+        if: failure()
+        run: |
+          echo "::error title=quality scan failed::full log: https://github.com/${GITHUB_REPOSITORY}/releases/download/ci-logs/quality-${GITHUB_RUN_ID}.log"
