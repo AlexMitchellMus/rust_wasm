@@ -1,0 +1,386 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: Stage C <stage-c@example.invalid>
+Date: Thu, 19 Nov 2026 15:40:00 +1030
+Subject: [PATCH] Inline tiny leaf functions before compiling them
+
+Rust's MIR inliner runs before monomorphization, so a call that only becomes
+concrete when a generic function is instantiated stays a call. Cranelift has no
+inliner of its own, so cg_clif emits a wasm `call` for every `Shl`, `BitAnd`,
+`CastInto` or `wrapping_*` helper that libm's generic maths expands to. LLVM
+inlines the same helpers in its already-monomorphized IR, which is why a
+software `sqrt` is several times faster there.
+
+Add `inline_small_leaf_functions`, built on Cranelift's `Context::inline` hook,
+with a deliberately narrow policy: a direct call is replaced by its body only
+when the callee is a leaf of at most 12 instructions and 4 blocks, with no
+stack slots, calls, memory, global or table accesses, traps or conditional
+branches. A `nop`, a straight-line `jump` and the final `return` are allowed
+(cg_clif gives even a one-expression wrapper an entry block that jumps to the
+body). The call site still passes the same arguments, so `#[track_caller]`
+locations and integer division traps behave exactly as before. The frontend
+supplies the candidate bodies: only the compilation unit knows which
+definitions are available, and a callee that is compiled later in the unit can
+still be inlined. On A.2 (e) this takes 86.45 to 68.99 ns/point (1.25x);
+stage-c/notes/codegen.md has the full result.
+
+The test in tests/inline.rs fails before the change (the call remains) and
+passes after it, and the inlined caller produces the same result under
+Wasmtime. A body with a load or more than the instruction limit is rejected.
+---
+diff --git a/src/inline.rs b/src/inline.rs
+new file mode 100644
+--- /dev/null
++++ b/src/inline.rs
+@@ -0,0 +1,166 @@
++//! Inlining of tiny leaf functions.
++//!
++//! Rust's MIR inliner runs before monomorphization. A call that only becomes
++//! concrete when a generic function is instantiated therefore stays a call:
++//! the `<<T as Float>::Int as Shl<u32>>::shl` and `CastInto::cast` helpers that
++//! libm's generic maths expands to are the common case. LLVM inlines them in
++//! its own IR, which is already monomorphized; Cranelift has no inliner of its
++//! own, so with cg_clif each one reaches this backend as a wasm `call`.
++//! In a hot path that is expensive: the call, its argument moves and the
++//! callee's prologue cost more than the one or two arithmetic instructions the
++//! callee performs.
++//!
++//! [`inline_small_leaf_functions`] removes the smallest and most numerous of
++//! those calls before [`compile_function`](crate::compile_function) runs. The
++//! policy is deliberately narrow: only direct calls to leaf functions of at most a few blocks
++//! of at most [`MAX_INLINED_INSTRUCTIONS`] instructions that perform no memory,
++//! global, table or call operations, so inlining cannot change when a trap or
++//! a side effect is observed. A frontend supplies the candidate bodies because
++//! a compilation unit, not this crate, knows which definitions are available
++//! and safe to duplicate.
++
++use crate::env::Name;
++use crate::{Error, Result};
++use alloc::borrow::Cow;
++use cranelift_codegen::Context;
++use cranelift_codegen::inline::{Inline, InlineCommand};
++use cranelift_codegen::ir::{Function, Inst, Opcode, UserFuncName, Value};
++
++/// The largest function body, in CLIF instructions, that
++/// [`inline_small_leaf_functions`] will inline.
++///
++/// The callee is copied at every call site, so this bounds both code growth
++/// and compile time. It is large enough for the one- and two-instruction
++/// wrappers that `core`'s operator impls expand to.
++pub const MAX_INLINED_INSTRUCTIONS: usize = 12;
++
++/// The largest number of CLIF blocks that an inlined body may have.
++///
++/// A cg_clif function has an entry block that jumps to the block holding the
++/// body, so even a one-expression wrapper has two. More blocks than this means
++/// real control flow, which is not worth copying into every caller.
++pub const MAX_INLINED_BLOCKS: usize = 4;
++
++/// Whether `func` is a leaf small enough for
++/// [`inline_small_leaf_functions`] to inline at each direct call.
++///
++/// A candidate has at most [`MAX_INLINED_BLOCKS`] blocks, no stack slots and
++/// at most [`MAX_INLINED_INSTRUCTIONS`] instructions, each of which is a pure
++/// arithmetic, comparison, conversion or constant operation, a `nop`, an
++/// unconditional `jump`, or the final `return`. Calls, memory and global
++/// accesses, traps and conditional branches are excluded, so duplicating the
++/// body cannot duplicate or reorder an observable effect.
++#[must_use]
++pub fn is_small_leaf(func: &Function) -> bool {
++    func.dfg.num_blocks() <= MAX_INLINED_BLOCKS
++        && func.stencil.sized_stack_slots.is_empty()
++        && func.dfg.num_insts() <= MAX_INLINED_INSTRUCTIONS
++        && func.signature.params.len() <= 4
++        && func.signature.returns.len() <= 1
++        && func.layout.blocks().all(|block| {
++            func.layout
++                .block_insts(block)
++                .all(|inst| is_pure(func, inst))
++        })
++}
++
++/// Is `inst` an operation that can be copied to another function without
++/// carrying memory, a global, a call or a trap with it?
++///
++/// Matching on the instruction *format* rather than an opcode list is what
++/// makes this robust: every instruction that reads or writes memory, names a
++/// global, references a table entry or calls a function has its own format,
++/// so none of them can match. `return` is the only multi-argument operation
++/// allowed; the other forms are integer and floating-point arithmetic.
++fn is_pure(func: &Function, inst: Inst) -> bool {
++    use cranelift_codegen::ir::InstructionData as D;
++    match &func.dfg.insts[inst] {
++        D::Binary { .. }
++        | D::BinaryImm8 { .. }
++        | D::FloatCompare { .. }
++        | D::IntCompare { .. }
++        | D::Ternary { .. }
++        | D::TernaryImm8 { .. }
++        | D::Unary { .. }
++        | D::UnaryImm { .. }
++        | D::UnaryIeee16 { .. }
++        | D::UnaryIeee32 { .. }
++        | D::UnaryIeee64 { .. } => true,
++        // The entry block that cg_clif adds jumps to the body block. A jump is
++        // control flow, but it has no effect of its own; conditional branches
++        // and traps are still rejected, so a body is at most a straight line.
++        D::Jump { .. } => true,
++        D::NullAry { opcode } => matches!(opcode, Opcode::Nop | Opcode::SequencePoint),
++        D::MultiAry { opcode, .. } => *opcode == Opcode::Return,
++        _ => false,
++    }
++}
++
++/// Inline direct calls in `func` to the small leaf functions in `callees`.
++///
++/// A callee is matched by [`Function::name`]; a frontend that reuses this must
++/// set it to the name its calls resolve to. Only the caller is changed: every
++/// callee is still compiled and emitted on its own, so an inlined body is a
++/// copy, not a move.
++///
++/// Returns whether at least one call was inlined.
++///
++/// # Errors
++///
++/// Returns [`Error::Unsupported`] if Cranelift's inliner rejects the function.
++/// That indicates invalid IR, which [`compile_function`](crate::compile_function)
++/// would reject too.
++pub fn inline_small_leaf_functions(func: &mut Function, callees: &[Function]) -> Result<bool> {
++    let mut context = Context::new();
++    context.func = core::mem::replace(func, Function::new());
++    let inlined = context
++        .inline(SmallLeafInliner { callees })
++        .map_err(|e| Error::Unsupported(alloc::format!("inlining: {e}")))?;
++    *func = context.func;
++    Ok(inlined)
++}
++
++/// The [`Inline`] policy used by [`inline_small_leaf_functions`].
++struct SmallLeafInliner<'a> {
++    callees: &'a [Function],
++}
++
++impl Inline for SmallLeafInliner<'_> {
++    fn inline(
++        &mut self,
++        caller: &Function,
++        _call_inst: Inst,
++        call_opcode: Opcode,
++        callee: cranelift_codegen::ir::FuncRef,
++        _call_args: &[Value],
++    ) -> InlineCommand<'_> {
++        if call_opcode != Opcode::Call {
++            return InlineCommand::KeepCall;
++        }
++        let name = Name::resolve(caller, &caller.dfg.ext_funcs[callee].name);
++        let callees = self.callees;
++        let Some(body) = callees
++            .iter()
++            .find(|body| has_name(body, name) && is_small_leaf(body))
++        else {
++            return InlineCommand::KeepCall;
++        };
++        InlineCommand::Inline {
++            callee: Cow::Borrowed(body),
++            // The body is a leaf, so it cannot contain another call to
++            // consider. Not revisiting it also bounds the pass at one level.
++            visit_callee: false,
++        }
++    }
++}
++
++/// Whether a call to `name` resolves to `body`.
++fn has_name(body: &Function, name: Name<'_>) -> bool {
++    match (name, &body.name) {
++        (Name::User(user), UserFuncName::User(body)) => user == body,
++        (Name::TestCase(testcase), UserFuncName::Testcase(body)) => {
++            testcase.as_bytes() == body.raw()
++        }
++        _ => false,
++    }
++}
+diff --git a/src/lib.rs b/src/lib.rs
+--- a/src/lib.rs
++++ b/src/lib.rs
+@@ -98,6 +98,7 @@
+ mod env;
+ mod error;
+ mod expr_trees;
++mod inline;
+ mod legalize_abi;
+ mod legalize_i128;
+ mod locals;
+@@ -117,6 +118,9 @@
+ pub use config::{AddressType, Config, EngineFeatures, ModuleLayout, Optimizations};
+ pub use env::{Env, Name, SymbolValue};
+ pub use error::{Error, Result};
++pub use inline::{
++    MAX_INLINED_BLOCKS, MAX_INLINED_INSTRUCTIONS, inline_small_leaf_functions, is_small_leaf,
++};
+ pub use module::{
+     Export, FuncIndex, GlobalIndex, MemoryIndex, ModuleBuilder, TableIndex, TagIndex, TypeIndex,
+ };
+diff --git a/tests/inline.rs b/tests/inline.rs
+new file mode 100644
+--- /dev/null
++++ b/tests/inline.rs
+@@ -0,0 +1,160 @@
++//! Inlining of tiny leaf functions: the call disappears, the result does not
++//! change, and anything with an effect or a larger body is left alone.
++
++mod harness;
++
++use clif_to_wasm::{Config, inline_small_leaf_functions, is_small_leaf};
++use cranelift_codegen::data_value::DataValue;
++use cranelift_codegen::ir::{Function, Opcode, types};
++
++const CLIF: &str = "
++function u0:0(i64) -> i64 {
++block0(v0: i64):
++    v1 = iconst.i64 3
++    v2 = ishl v0, v1
++    return v2
++}
++
++function u0:1(i64, i64) -> i64 {
++    fn0 = u0:0(i64) -> i64
++block0(v0: i64, v1: i64):
++    v2 = call fn0(v0)
++    v3 = iadd v2, v1
++    return v3
++}
++
++function u0:2(i64) -> i64 {
++block0(v0: i64):
++    v1 = load.i64 v0
++    return v1
++}
++
++function u0:3(i64) -> i64 {
++block0(v0: i64):
++    v1 = iconst.i64 1
++    v2 = iadd v0, v1
++    v3 = iadd v2, v1
++    v4 = iadd v3, v1
++    v5 = iadd v4, v1
++    v6 = iadd v5, v1
++    v7 = iadd v6, v1
++    v8 = iadd v7, v1
++    v9 = iadd v8, v1
++    v10 = iadd v9, v1
++    v11 = iadd v10, v1
++    v12 = iadd v11, v1
++    v13 = iadd v12, v1
++    v14 = iadd v13, v1
++    v15 = iadd v14, v1
++    v16 = iadd v15, v1
++    v17 = iadd v16, v1
++    return v17
++}
++
++function u0:4(i64) -> i64 {
++    fn0 = u0:3(i64) -> i64
++block0(v0: i64):
++    v1 = call fn0(v0)
++    return v1
++}
++
++function u0:5(i64) -> i64 {
++block0(v0: i64):
++    jump block1(v0)
++block1(v1: i64):
++    v2 = iconst.i64 1
++    v3 = iadd v1, v2
++    return v3
++}
++
++function u0:6(i64) -> i64 {
++    fn0 = u0:5(i64) -> i64
++block0(v0: i64):
++    v1 = call fn0(v0)
++    return v1
++}
++";
++
++fn functions() -> Vec<Function> {
++    cranelift_reader::parse_functions(CLIF).unwrap()
++}
++
++/// Inline calls in `caller` using `body` as the only candidate.
++fn inline_small(caller: &mut Function, body: &Function) -> bool {
++    inline_small_leaf_functions(caller, std::slice::from_ref(body)).unwrap()
++}
++
++fn calls(func: &Function) -> usize {
++    func.layout
++        .blocks()
++        .flat_map(|block| func.layout.block_insts(block))
++        .filter(|inst| func.dfg.insts[*inst].opcode() == Opcode::Call)
++        .count()
++}
++
++#[test]
++fn small_leaf_is_inlined() {
++    let funcs = functions();
++    let small = &funcs[0];
++    assert!(is_small_leaf(small));
++    let mut caller = funcs[1].clone();
++    assert_eq!(calls(&caller), 1);
++
++    assert!(inline_small(&mut caller, small));
++    assert_eq!(calls(&caller), 0, "the call was replaced by its body");
++}
++
++#[test]
++fn inlined_call_has_the_same_result() {
++    let mut funcs = functions();
++    let small = funcs[0].clone();
++    assert!(inline_small(&mut funcs[1], &small));
++
++    let (wasm, unsupported) = harness::compile_module(&funcs, &Config::default());
++    assert!(unsupported.is_empty(), "{unsupported:?}");
++    harness::validate(&wasm).unwrap();
++
++    let runner = harness::Runner::new(&wasm).unwrap();
++    let result = runner
++        .call(
++            "u0:1",
++            &[DataValue::I64(7), DataValue::I64(1)],
++            &[types::I64],
++        )
++        .unwrap()
++        .expect("the inlined caller returns");
++    assert_eq!(result, vec![DataValue::I64(57)]);
++}
++
++#[test]
++fn functions_with_effects_are_not_candidates() {
++    let funcs = functions();
++    // A load is a memory operation, so the body cannot be duplicated.
++    assert!(!is_small_leaf(&funcs[2]));
++
++    let mut caller = funcs[1].clone();
++    let inlined = inline_small_leaf_functions(&mut caller, &[]).unwrap();
++    assert!(!inlined);
++    assert_eq!(calls(&caller), 1);
++}
++
++#[test]
++fn a_body_that_is_too_large_is_kept_out() {
++    let funcs = functions();
++    // Sixteen additions plus the constant and the return exceed the limit.
++    assert!(!is_small_leaf(&funcs[3]));
++    let mut caller = funcs[4].clone();
++    assert!(!inline_small(&mut caller, &funcs[3]));
++    assert_eq!(calls(&caller), 1);
++}
++
++#[test]
++fn a_linear_multi_block_body_is_inlined() {
++    let funcs = functions();
++    // cg_clif gives every function an entry block that jumps to its body, so a
++    // one-expression wrapper already has two blocks.
++    assert!(is_small_leaf(&funcs[5]));
++    let mut caller = funcs[6].clone();
++    assert!(inline_small(&mut caller, &funcs[5]));
++    assert_eq!(calls(&caller), 0);
++}
