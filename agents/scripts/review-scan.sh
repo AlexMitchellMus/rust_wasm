@@ -14,6 +14,9 @@ set -euo pipefail
 root="$(git rev-parse --show-toplevel)"
 cd "$root"
 
+tmpdir="$(mktemp -d)"
+trap 'rm -rf "${tmpdir:?}"' EXIT
+
 changed=0
 strict=0
 for arg in "$@"; do
@@ -26,7 +29,9 @@ done
 
 failed=0      # findings that always fail
 soft=0        # findings that fail only with --strict
+blocking_reasons=()  # one line per blocking failure, repeated in the summary
 note() { printf '\n== %s\n' "$*"; }
+blocking() { blocking_reasons+=("$*"); printf '   BLOCKING: %s\n' "$*"; }
 # Read lines from stdin into the named array (bash 3.2 has no mapfile).
 read_into() { local _name="$1" _line; eval "$_name=()"; while IFS= read -r _line; do
   [[ -n "$_line" ]] && eval "$_name+=(\"\$_line\")"; done; }
@@ -50,10 +55,28 @@ fi
 note "ast-grep rule self-test"
 if command -v ast-grep >/dev/null; then
   expected="allow-needs-expect no-dbg-macro no-ignored-tests no-process-exit-in-library no-sleep-to-fix-ordering no-todo-in-code"
-  found="$(ast-grep scan --json=compact agents/scripts/rule-fixtures/bad.rs 2>/dev/null \
-    | python3 -I -c 'import json,sys; print(" ".join(sorted({x["ruleId"] for x in json.load(sys.stdin)})))' || true)"
-  if [[ "$found" != "$expected" ]]; then
-    echo "   rules no longer match their fixtures: expected [$expected], got [$found]"; failed=1
+  self_test_json="$tmpdir/self-test.json"
+  self_test_err="$tmpdir/self-test.err"
+  status=0
+  ast-grep scan --json=compact agents/scripts/rule-fixtures/bad.rs \
+    >"$self_test_json" 2>"$self_test_err" || status=$?
+  found=""
+  have_python=0
+  if command -v python3 >/dev/null; then
+    have_python=1
+    found="$(python3 -I -c 'import json,sys; print(" ".join(sorted({x["ruleId"] for x in json.load(sys.stdin)})))' \
+      <"$self_test_json" 2>/dev/null || true)"
+  fi
+  if [[ $have_python -eq 0 ]]; then
+    blocking "python3 not installed; cannot verify that the ast-grep rules match bad.rs"
+    failed=1
+  elif [[ -z "$found" ]]; then
+    reason="$(head -n 1 "$self_test_err")"
+    blocking "ast-grep self-test produced no rule ids (ast-grep exit $status${reason:+; stderr: $reason})"
+    failed=1
+  elif [[ "$found" != "$expected" ]]; then
+    blocking "rules no longer match their fixtures: expected [$expected], got [$found]"
+    failed=1
   else
     echo "   all rules match bad.rs"
   fi
@@ -65,8 +88,22 @@ fi
 note "ast-grep scan"
 if command -v ast-grep >/dev/null; then
   read_into rs_files < <(own_files '*.rs' | in_scope)
-  if [[ ${#rs_files[@]:-0} -gt 0 ]]; then
-    if ! ast-grep scan "${rs_files[@]}"; then failed=1; fi
+  if [[ ${#rs_files[@]} -gt 0 ]]; then
+    scan_out="$tmpdir/ast-grep-scan.out"
+    status=0
+    ast-grep scan "${rs_files[@]}" >"$scan_out" 2>&1 || status=$?
+    cat "$scan_out"
+    if [[ $status -ne 0 ]]; then
+      failed=1
+      error_count="$(grep -cE '^error\[[^]]+\]' "$scan_out" || true)"
+      error_rules="$(grep -oE '^error\[[^]]+\]' "$scan_out" \
+        | sed -E 's/^error\[([^]]+)\]$/\1/' | sort -u | tr '\n' ' ' || true)"
+      if [[ ${error_count:-0} -gt 0 ]]; then
+        blocking "ast-grep found $error_count error-level finding(s) from: ${error_rules% }"
+      else
+        blocking "ast-grep scan failed with exit $status and no error-level findings (see output above)"
+      fi
+    fi
   else
     echo "   no Rust files in scope"
   fi
@@ -132,7 +169,9 @@ fi
 
 note "summary"
 if [[ $failed -ne 0 ]]; then
-  echo "   FAIL: error-level findings (see above)"; exit 1
+  echo "   FAIL: blocking findings"
+  for reason in "${blocking_reasons[@]}"; do printf '   %s\n' "$reason"; done
+  exit 1
 fi
 if [[ $soft -ne 0 ]]; then
   if [[ $strict -eq 1 ]]; then echo "   FAIL (--strict): findings above"; exit 1; fi
