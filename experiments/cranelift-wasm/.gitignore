@@ -11,3 +11,12 @@
 
 # Local/CI stage-C build log (the workflow publishes its own full log).
 /stage-c/results/build-rustc-wasm.log
+
+# Release bundle outputs (local dry runs and the packaging script).
+/release/out/
+/release/dist/
+*.cwasm.json
+
+# Python bytecode from the release notices generator.
+__pycache__/
+*.pyc

@@ -3,16 +3,30 @@ name = "stage-c-host"
 version = "0.1.0"
 edition = "2021"
 
+[lib]
+name = "stage_c_host"
+path = "src/lib.rs"
+
 [[bin]]
 name = "stage-c-host"
 path = "src/main.rs"
+
+# Precompiles rustc.wasm to a Wasmtime `.cwasm` and benchmarks module loading.
+[[bin]]
+name = "stage-c-precompile"
+path = "src/bin/precompile.rs"
 
 [dependencies]
 anyhow = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
+sha2 = "0.10"
 wasmparser = "0.263"
 # Latest stable Wasmtime as of stage C (51.0.0 is still an RC). rustc.wasm no
 # longer spawns a compiler thread, so plain WASI p1 is enough: no wasi-threads.
 wasmtime = { version = "=50.0.2", default-features = false, features = ["cranelift", "runtime", "std", "cache", "anyhow", "threads"] }
+# Not a public dependency: `wasmtime` does not re-export its own version, and
+# the sidecar metadata must record the exact version. Pinned in lockstep with
+# `wasmtime`.
+wasmtime-environ = "=50.0.2"
 wasmtime-wasi = { version = "=50.0.2", default-features = false, features = ["p1"] }

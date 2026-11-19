@@ -1,0 +1,435 @@
+name: release
+
+# Manual-only release build. There is deliberately no `push: tags` trigger:
+# a release is built from the exact commit selected in the Actions UI, the tag
+# is an input, and `dry_run` defaults to true so the first run only creates a
+# draft. Nothing in this workflow reads a secret; it uses the repository's
+# GITHUB_TOKEN with contents: write to create/upload the release.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag to create, for example v0.3.0 (must start with v and a digit)'
+        required: true
+        type: string
+      dry_run:
+        description: 'Create a DRAFT release instead of publishing it'
+        required: false
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: '1'
+
+jobs:
+  # Build the compiler once on Linux; every host job downloads the same
+  # rustc.wasm so the per-host .cwasm files are built from identical bytes.
+  compiler:
+    name: rustc.wasm + pure sysroot
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    steps:
+      - name: validate tag
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          case "$TAG" in
+            v[0-9]*) ;;
+            *) echo "::error title=bad tag::tag must start with v and a digit, got '$TAG'"; exit 1 ;;
+          esac
+          case "$TAG" in
+            *[!A-Za-z0-9._-]*) echo "::error title=bad tag::tag contains characters unsafe in file names"; exit 1 ;;
+          esac
+
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - name: install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake pkg-config libclang-dev curl xz-utils zstd
+
+      # Same cache keys as cranelift_wasm.yml: a release run reuses what CI
+      # already downloaded. The multi-GB rustc build tree is not cached.
+      - name: restore rustup toolchains
+        id: cache-rustup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/rustup
+            experiments/cranelift-wasm/toolchain/cargo/bin
+          key: cranelift-wasm-rustup-${{ runner.os }}-${{ runner.arch }}-nightly-2026-10-19-1.99.1-v1
+
+      - name: restore cargo registry and git
+        id: cache-cargo
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/cargo/registry
+            experiments/cranelift-wasm/toolchain/cargo/git
+          key: cranelift-wasm-cargo-${{ runner.os }}-${{ hashFiles('experiments/cranelift-wasm/stage-c/host/Cargo.lock', 'experiments/cranelift-wasm/stage-c/programs/*/Cargo.lock', 'experiments/cranelift-wasm/stage-b/a2/harness/Cargo.lock') }}-v1
+          restore-keys: |
+            cranelift-wasm-cargo-${{ runner.os }}-
+
+      - name: restore pinned source checkouts
+        id: cache-src
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/playground
+            experiments/cranelift-wasm/toolchain/clif-to-wasm
+            experiments/cranelift-wasm/toolchain/wild
+          key: cranelift-wasm-src-${{ runner.os }}-${{ hashFiles('experiments/cranelift-wasm/stage-c/patches/**') }}-f5298630-0e4e0458-fd79578-v1
+
+      - name: restore wasi-sdk
+        id: cache-wasi-sdk
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/stage-b/wasi-sdk-34.0-x86_64-linux
+            experiments/cranelift-wasm/toolchain/stage-b/wasi-sdk
+          key: cranelift-wasm-wasi-sdk-${{ runner.os }}-${{ runner.arch }}-34.0-v1
+
+      - name: setup pinned toolchain and sources
+        run: bash experiments/cranelift-wasm/ci/setup-toolchain.sh
+
+      - name: build stage-C rustc.wasm
+        run: bash experiments/cranelift-wasm/stage-c/scripts/build-rustc-wasm.sh
+
+      - name: build reference host
+        run: bash experiments/cranelift-wasm/stage-c/scripts/build-host.sh
+
+      - name: build pure sysroot with rustc.wasm (strict)
+        env:
+          CG_CLIF_WASM_STRICT: '1'
+        run: bash experiments/cranelift-wasm/stage-c/scripts/build-pure-sysroot.sh
+
+      - name: write version metadata
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          ROOT=experiments/cranelift-wasm
+          RUSTC="$ROOT/toolchain/stage-c/artifacts/rustc.wasm"
+          STAGE1="$ROOT/toolchain/stage-b/rust/build/host/stage1/bin/rustc"
+          export RUSTUP_HOME="$PWD/$ROOT/toolchain/rustup"
+          export CARGO_HOME="$PWD/$ROOT/toolchain/cargo"
+          RUSTC_BYTES=$(wc -c < "$RUSTC" | tr -d ' ')
+          RUSTC_SHA=$(sha256sum "$RUSTC" | cut -d' ' -f1)
+          SYS_BYTES=$(du -sb "$ROOT/toolchain/stage-c/sysroot-pure" | cut -f1)
+          RUSTC_VERSION=$("$STAGE1" -vV | head -1)
+          python3 - "$TAG" "$RUSTC_BYTES" "$RUSTC_SHA" "$SYS_BYTES" "$RUSTC_VERSION" <<'PY'
+          import json, os, subprocess, sys
+          tag, rustc_bytes, rustc_sha, sys_bytes, rustc_version = sys.argv[1:]
+          root = "experiments/cranelift-wasm"
+          def rev(path):
+              try:
+                  return subprocess.check_output(["git", "-C", f"{root}/{path}", "rev-parse", "HEAD"], text=True).strip()
+              except subprocess.CalledProcessError:
+                  return "unknown"
+          def lock_version(path, crate):
+              text = open(f"{root}/{path}", encoding="utf-8").read()
+              marker = f'name = "{crate}"\nversion = "'
+              start = text.index(marker) + len(marker)
+              return text[start:text.index('"', start)]
+          metadata = {
+              "tag": tag,
+              "commit": os.environ.get("GITHUB_SHA", "unknown"),
+              "rustc_wasm_bytes": int(rustc_bytes),
+              "rustc_wasm_sha256": rustc_sha,
+              "sysroot_pure_bytes": int(sys_bytes),
+              "rustc_version": rustc_version,
+              "nightly": "nightly-2026-10-19",
+              "rustc_source": rev("toolchain/stage-b/rust"),
+              "clif_to_wasm": rev("toolchain/clif-to-wasm"),
+              "wild": rev("toolchain/wild"),
+              "wasmtime": lock_version("stage-c/host/Cargo.lock", "wasmtime"),
+          }
+          json.dump(metadata, open("release-metadata.json", "w"), indent=2)
+          open("release-metadata.json", "a").write("\n")
+          PY
+          cat release-metadata.json
+
+      - name: generate third-party notices
+        run: |
+          set -euo pipefail
+          export RUSTUP_HOME="$PWD/experiments/cranelift-wasm/toolchain/rustup"
+          export CARGO_HOME="$PWD/experiments/cranelift-wasm/toolchain/cargo"
+          export PATH="$CARGO_HOME/bin:$PATH"
+          python3 experiments/cranelift-wasm/release/gen-notices.py --out THIRD_PARTY_NOTICES
+
+      - name: upload compiler bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: compiler-bundle
+          path: |
+            experiments/cranelift-wasm/toolchain/stage-c/artifacts/rustc.wasm
+            experiments/cranelift-wasm/toolchain/stage-c/sysroot-pure
+            release-metadata.json
+            THIRD_PARTY_NOTICES
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 6
+
+      - name: save rustup toolchains
+        if: success() && steps.cache-rustup.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/rustup
+            experiments/cranelift-wasm/toolchain/cargo/bin
+          key: cranelift-wasm-rustup-${{ runner.os }}-${{ runner.arch }}-nightly-2026-10-19-1.99.1-v1
+
+      - name: save cargo registry and git
+        if: success() && steps.cache-cargo.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/cargo/registry
+            experiments/cranelift-wasm/toolchain/cargo/git
+          key: cranelift-wasm-cargo-${{ runner.os }}-${{ hashFiles('experiments/cranelift-wasm/stage-c/host/Cargo.lock', 'experiments/cranelift-wasm/stage-c/programs/*/Cargo.lock', 'experiments/cranelift-wasm/stage-b/a2/harness/Cargo.lock') }}-v1
+
+      - name: save pinned source checkouts
+        if: success() && steps.cache-src.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/playground
+            experiments/cranelift-wasm/toolchain/clif-to-wasm
+            experiments/cranelift-wasm/toolchain/wild
+          key: cranelift-wasm-src-${{ runner.os }}-${{ hashFiles('experiments/cranelift-wasm/stage-c/patches/**') }}-f5298630-0e4e0458-fd79578-v1
+
+  # One job per host. Each downloads the one rustc.wasm, builds the host and
+  # Wild with the pinned stable 1.99.1, precompiles the .cwasm with the host's
+  # own engine config, and packages a versioned bundle.
+  host:
+    name: bundle ${{ matrix.triple }}
+    needs: compiler
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - triple: aarch64-apple-darwin
+            os: macos-14
+          - triple: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 180
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: free disk space
+        # The action only supports Linux runners.
+        if: runner.os == 'Linux'
+        uses: jlumbroso/free-disk-space@main
+        with:
+          tool-cache: true
+          android: true
+          dotnet: true
+          haskell: true
+          large-packages: true
+          docker-images: true
+          swap-storage: false
+
+      - name: install build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential cmake pkg-config libclang-dev curl xz-utils zstd
+
+      - name: restore rustup toolchains
+        id: cache-rustup
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/rustup
+            experiments/cranelift-wasm/toolchain/cargo/bin
+          key: cranelift-wasm-rustup-${{ runner.os }}-${{ runner.arch }}-nightly-2026-10-19-1.99.1-v1
+
+      - name: restore cargo registry and git
+        id: cache-cargo
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/cargo/registry
+            experiments/cranelift-wasm/toolchain/cargo/git
+          key: cranelift-wasm-cargo-${{ runner.os }}-${{ hashFiles('experiments/cranelift-wasm/stage-c/host/Cargo.lock', 'experiments/cranelift-wasm/stage-c/programs/*/Cargo.lock', 'experiments/cranelift-wasm/stage-b/a2/harness/Cargo.lock') }}-v1
+          restore-keys: |
+            cranelift-wasm-cargo-${{ runner.os }}-
+
+      - name: restore pinned source checkouts
+        id: cache-src
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/playground
+            experiments/cranelift-wasm/toolchain/clif-to-wasm
+            experiments/cranelift-wasm/toolchain/wild
+          key: cranelift-wasm-src-${{ runner.os }}-${{ hashFiles('experiments/cranelift-wasm/stage-c/patches/**') }}-f5298630-0e4e0458-fd79578-v1
+
+      - name: restore wasi-sdk
+        id: cache-wasi-sdk
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            experiments/cranelift-wasm/toolchain/stage-b/wasi-sdk-34.0-x86_64-linux
+            experiments/cranelift-wasm/toolchain/stage-b/wasi-sdk
+          key: cranelift-wasm-wasi-sdk-${{ runner.os }}-${{ runner.arch }}-34.0-v1
+
+      - name: download rustc.wasm and sysroot
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: compiler-bundle
+          path: bundle/compiler
+
+      - name: setup pinned toolchain and sources
+        run: bash experiments/cranelift-wasm/ci/setup-toolchain.sh
+
+      - name: build host, build Wild, precompile and package
+        env:
+          TAG: ${{ inputs.tag }}
+          HOST_TRIPLE: ${{ matrix.triple }}
+        run: |
+          bash experiments/cranelift-wasm/stage-c/precompile/package.sh \
+            --tag "$TAG" \
+            --host-triple "$HOST_TRIPLE" \
+            --rustc-wasm bundle/compiler/experiments/cranelift-wasm/toolchain/stage-c/artifacts/rustc.wasm \
+            --sysroot bundle/compiler/experiments/cranelift-wasm/toolchain/stage-c/sysroot-pure \
+            --notices bundle/compiler/THIRD_PARTY_NOTICES \
+            --out bundle/host
+
+      - name: upload host bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: bundle-${{ matrix.triple }}
+          path: bundle/host
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+  # Assemble all host bundles, upload the merged artifact, and create the
+  # GitHub release. With dry_run=true the release is a DRAFT; the merged
+  # artifact is uploaded in both modes.
+  release:
+    name: assemble and release
+    needs: [compiler, host]
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: write
+    steps:
+      - name: checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: download all host bundles
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          pattern: bundle-*
+          path: dist
+          merge-multiple: true
+
+      - name: download version metadata
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: compiler-bundle
+          path: compiler
+
+      - name: assemble versioned bundle
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          case "$TAG" in
+            v[0-9]*) ;;
+            *) echo "::error title=bad tag::tag must start with v and a digit, got '$TAG'"; exit 1 ;;
+          esac
+          case "$TAG" in
+            *[!A-Za-z0-9._-]*) echo "::error title=bad tag::tag contains characters unsafe in file names"; exit 1 ;;
+          esac
+          cp compiler/release-metadata.json "dist/release-metadata-$TAG.json"
+          # The per-host SHA256SUMS only cover that host's files; replace them
+          # with one checksum file for the assembled release.
+          find dist -maxdepth 1 -name 'SHA256SUMS' -delete
+          (
+            cd dist
+            : > "SHA256SUMS-$TAG"
+            while IFS= read -r file; do
+              [ "$file" = "SHA256SUMS-$TAG" ] && continue
+              printf '%s  %s\n' "$(sha256sum "$file" | cut -d' ' -f1)" "$file" >> "SHA256SUMS-$TAG"
+            done < <(LC_ALL=C ls -1 | sort)
+          )
+          ls -lh dist
+          df -h dist
+
+      - name: upload assembled release bundle
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: release-bundle-${{ inputs.tag }}
+          path: dist
+          if-no-files-found: error
+          retention-days: 30
+          compression-level: 0
+
+      - name: create or update the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ inputs.tag }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          assets=(dist/*)
+          [ "${#assets[@]}" -gt 0 ] || { echo "::error::nothing to release"; exit 1; }
+          notes="Release $TAG from commit $GITHUB_SHA.
+
+          rustc.wasm is a modified build of rustc (Cranelift only, no LLVM inside);
+          it is not the official Rust compiler. See README-$TAG.md and
+          THIRD_PARTY_NOTICES for use, the exact Wasmtime 50.0.2 requirement and
+          licensing. Verify SHA256SUMS-$TAG before installing."
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            if [ "$DRY_RUN" = "true" ]; then
+              is_draft=$(gh release view "$TAG" --json isDraft --jq .isDraft)
+              if [ "$is_draft" != "true" ]; then
+                echo "::error title=published release::$TAG is already published; a dry run will not modify it"
+                exit 1
+              fi
+            fi
+            echo "release $TAG already exists; uploading assets with --clobber"
+            gh release upload "$TAG" "${assets[@]}" --clobber
+          elif [ "$DRY_RUN" = "true" ]; then
+            echo "::notice title=dry run::creating a DRAFT release $TAG (dry_run=true)"
+            gh release create "$TAG" "${assets[@]}" \
+              --draft --title "$TAG (draft)" --notes "$notes" --target "$GITHUB_SHA"
+          else
+            gh release create "$TAG" "${assets[@]}" \
+              --title "$TAG" --notes "$notes" --target "$GITHUB_SHA"
+          fi
+
+  # Windows is intentionally not a host target in this release.
+  #
+  # The reference host preopens the guest filesystem as `/` and passes native
+  # paths (for example `D:\a\...`) to rustc.wasm. WASI preview 1 has no way to
+  # represent a Windows drive in a preopened path, so the guest cannot read the
+  # source or write objects without a host-side path translation layer. Wild's
+  # Windows host support is also untested for this pipeline. Adding a
+  # windows-latest job without that translation would produce a bundle that
+  # fails at `check`. Revisit after the host normalises paths for WASI.

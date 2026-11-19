@@ -1,13 +1,16 @@
 #!/usr/bin/env bash
 # Build stage-c rustc.wasm: wasm32-wasip1 (non-threads), cg_clif only, with
-# the stage-C rust thread/codegen patch, the cg_clif f128 and memory.grow
-# patches, and the clif-to-wasm memory.grow patch.
+# every patch under stage-c/patches/{rust,cg_clif,clif-to-wasm}/ applied.
 #
 # Reuses the stage-B source tree under toolchain/stage-b (incremental when the
-# tree was already built). `x.py install` may fail in the final
-# generate-copyright step because the patched clif-to-wasm is a path
-# dependency; the rustc.wasm artifact is produced before that step and is
-# copied out here. Any other failure is fatal.
+# tree was already built). Every patch under stage-c/patches/{rust,cg_clif,
+# clif-to-wasm}/ is applied idempotently before the build, in sorted order.
+#
+# `x.py install` must succeed: the generate-copyright failure caused by the
+# out-of-tree clif-to-wasm path dependency is fixed by
+# patches/rust/0002-generate-copyright-path-deps.patch. A nonzero exit prints
+# the log tail and stops; rustc.wasm is only copied out after a successful
+# install.
 set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)   # experiments/cranelift-wasm
 TOOL="$ROOT/toolchain"
@@ -39,30 +42,40 @@ JOBS=$(jobs)
 [ -d "$CLIF/.git" ] || { echo "missing $CLIF; run ci/setup-toolchain.sh first" >&2; exit 1; }
 mkdir -p "$(dirname "$LOG")" "$(dirname "$OUT")"
 
-# Rust thread/codegen patch. It may be applied as a commit (the local
-# experiment tree) or left uncommitted (a fresh CI checkout); the reverse
-# check covers both and makes reruns idempotent.
-RUST_PATCH="$ROOT/stage-c/patches/rust/0001-wasm-run-compiler-and-codegen-on-calling-thread.patch"
-if git -C "$SRC" apply --reverse --check "$RUST_PATCH" 2>/dev/null; then
-    echo "rust patch already applied"
-else
-    echo "applying $(basename "$RUST_PATCH")"
-    git -C "$SRC" apply "$RUST_PATCH"
-fi
-git -C "$SRC" apply --reverse --check "$RUST_PATCH" || {
-    echo "rust patch is not present after apply" >&2; exit 1; }
+# Rust patches. A patch may be applied as a commit (the local experiment tree)
+# or left uncommitted (a fresh CI checkout); the reverse check covers both and
+# makes reruns idempotent. Loop over every patch so a new one (for example the
+# generate-copyright or wasm file-lock fix) cannot be silently skipped.
+shopt -s nullglob
+RUST_PATCHES=("$ROOT"/stage-c/patches/rust/*.patch)
+[ "${#RUST_PATCHES[@]}" -gt 0 ] || {
+    echo "no rust patches found under $ROOT/stage-c/patches/rust" >&2; exit 1; }
+for p in "${RUST_PATCHES[@]}"; do
+    if git -C "$SRC" apply --reverse --check "$p" 2>/dev/null; then
+        echo "$(basename "$p") already applied"
+    else
+        echo "applying $(basename "$p")"
+        git -C "$SRC" apply "$p"
+    fi
+    git -C "$SRC" apply --reverse --check "$p" || {
+        echo "$(basename "$p") is not present after apply" >&2; exit 1; }
+done
 
-# clif-to-wasm patch (this checkout is the repository root, so the patch's
+# clif-to-wasm patches (this checkout is the repository root, so the patches'
 # src/... paths resolve correctly).
-CLIF_PATCH="$ROOT/stage-c/patches/clif-to-wasm/0001-lower-wasm-memory-grow-and-size.patch"
-if git -C "$CLIF" apply --reverse --check "$CLIF_PATCH" 2>/dev/null; then
-    echo "clif-to-wasm patch already applied"
-else
-    echo "applying $(basename "$CLIF_PATCH")"
-    git -C "$CLIF" apply "$CLIF_PATCH"
-fi
-git -C "$CLIF" apply --reverse --check "$CLIF_PATCH" || {
-    echo "clif-to-wasm patch is not present after apply" >&2; exit 1; }
+CLIF_PATCHES=("$ROOT"/stage-c/patches/clif-to-wasm/*.patch)
+[ "${#CLIF_PATCHES[@]}" -gt 0 ] || {
+    echo "no clif-to-wasm patches found under $ROOT/stage-c/patches/clif-to-wasm" >&2; exit 1; }
+for p in "${CLIF_PATCHES[@]}"; do
+    if git -C "$CLIF" apply --reverse --check "$p" 2>/dev/null; then
+        echo "$(basename "$p") already applied"
+    else
+        echo "applying $(basename "$p")"
+        git -C "$CLIF" apply "$p"
+    fi
+    git -C "$CLIF" apply --reverse --check "$p" || {
+        echo "$(basename "$p") is not present after apply" >&2; exit 1; }
+done
 
 # cg_clif patches (in-tree copy; stage A's wasm patch is already applied there).
 # The patch paths are src/... relative to the *rust* repository root, not to
@@ -71,7 +84,10 @@ git -C "$CLIF" apply --reverse --check "$CLIF_PATCH" || {
 # directory, which left a fresh CI tree unpatched. Apply with --directory from
 # the root instead, then assert the content is really there.
 CG_PREFIX=compiler/rustc_codegen_cranelift
-for p in "$ROOT"/stage-c/patches/cg_clif/000[12]-*.patch; do
+CG_PATCHES=("$ROOT"/stage-c/patches/cg_clif/*.patch)
+[ "${#CG_PATCHES[@]}" -gt 0 ] || {
+    echo "no cg_clif patches found under $ROOT/stage-c/patches/cg_clif" >&2; exit 1; }
+for p in "${CG_PATCHES[@]}"; do
     if git -C "$SRC" apply --reverse --check --directory="$CG_PREFIX" "$p" 2>/dev/null; then
         echo "$(basename "$p") already applied"
     else
@@ -117,22 +133,16 @@ status=${PIPESTATUS[0]}
 set -e
 
 ART="$SRC/build/wasm32-wasip1/stage2/bin/rustc.wasm"
-[ -f "$ART" ] || { echo "rustc.wasm was not produced; see $LOG" >&2; exit 1; }
 if [ "$status" -ne 0 ]; then
-    # The known packaging quirk is the last generate-copyright step. Do not
-    # hide a real compile/link failure behind a stale artifact: look at the
-    # tail of the log, where the failing command is reported. CI's backtrace
-    # is longer than macOS's and ends with `run::GenerateCopyright`, so use a
-    # case-insensitive match over a wide tail.
-    tail200=$(tail -n 200 "$LOG")
-    if grep -qi 'generate-copyright' <<< "$tail200"; then
-        echo "::warning::x.py install exited $status in generate-copyright; using the rustc.wasm produced before packaging"
-    else
-        echo "$tail200" >&2
-        echo "x.py install failed with status $status; see $LOG" >&2
-        exit "$status"
-    fi
+    # No failure is tolerated, including the final generate-copyright step:
+    # 0002-generate-copyright-path-deps.patch fixes the out-of-tree clif-to-wasm
+    # panic, so a nonzero install is a real problem. Print the tail where the
+    # failing command is reported and stop before copying anything.
+    tail -n 200 "$LOG" >&2
+    echo "x.py install failed with status $status; see $LOG" >&2
+    exit "$status"
 fi
+[ -f "$ART" ] || { echo "rustc.wasm was not produced; see $LOG" >&2; exit 1; }
 cp "$ART" "$OUT"
 echo "rustc.wasm -> $OUT"
 ls -lh "$OUT"

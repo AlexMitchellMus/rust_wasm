@@ -1115,8 +1115,10 @@ dependencies = [
  "anyhow",
  "serde",
  "serde_json",
+ "sha2",
  "wasmparser 0.263.0",
  "wasmtime",
+ "wasmtime-environ",
  "wasmtime-wasi",
 ]
 
