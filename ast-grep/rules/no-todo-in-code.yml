@@ -1,0 +1,18 @@
+id: no-todo-in-code
+language: Rust
+severity: error
+message: todo!() / unimplemented!() must not be committed
+note: |
+  agents/GUIDELINES.md, Errors and panics: unfinished code returns a clear
+  error instead of panicking at run time.
+rule:
+  any:
+    - pattern: todo!($$$)
+    - pattern: unimplemented!($$$)
+files:
+  - "**/*.rs"
+ignores:
+  - "**/target/**"
+  - "**/toolchain/**"
+  - "patches/**"
+  - "**/upstream/**"

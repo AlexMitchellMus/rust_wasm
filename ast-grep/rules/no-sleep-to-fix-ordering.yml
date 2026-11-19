@@ -1,0 +1,19 @@
+id: no-sleep-to-fix-ordering
+language: Rust
+severity: warning
+message: thread::sleep usually hides an ordering or invalidation bug
+note: |
+  agents/GUIDELINES.md, Fix root causes: no timing delays to make a problem go
+  away. If a real wait is needed (polling an external process), say why next to
+  the code and silence this rule there with a reason.
+rule:
+  any:
+    - pattern: std::thread::sleep($$$)
+    - pattern: thread::sleep($$$)
+files:
+  - "**/*.rs"
+ignores:
+  - "**/target/**"
+  - "**/toolchain/**"
+  - "patches/**"
+  - "**/upstream/**"

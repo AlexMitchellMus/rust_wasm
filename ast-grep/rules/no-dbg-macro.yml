@@ -1,0 +1,14 @@
+id: no-dbg-macro
+language: Rust
+severity: error
+message: dbg!() left in committed code
+note: agents/GUIDELINES.md, Errors and panics. Use proper logging or remove it.
+rule:
+  pattern: dbg!($$$)
+files:
+  - "**/*.rs"
+ignores:
+  - "**/target/**"
+  - "**/toolchain/**"
+  - "patches/**"
+  - "**/upstream/**"

@@ -196,9 +196,9 @@ fn main() -> anyhow::Result<()> {
                         doc["target"]["riscv64gc-unknown-linux-musl"]["linker"] =
                             "riscv64-linux-gnu-gcc".into();
                     }
-                    OS::Windows => todo!(),
-                    OS::Mac => todo!(),
-                    OS::False => todo!(),
+                    OS::Windows | OS::Mac | OS::False => {
+                        anyhow::bail!("this target set is only supported on Linux hosts");
+                    }
                 }
             }
         }

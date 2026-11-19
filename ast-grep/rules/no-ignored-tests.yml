@@ -1,0 +1,17 @@
+id: no-ignored-tests
+language: Rust
+severity: warning
+message: '#[ignore] without a reason hides a test'
+note: |
+  agents/GUIDELINES.md, Tests: never ignore a test to make CI pass. Slow tests
+  that are run separately use #[ignore = "reason"].
+rule:
+  kind: attribute_item
+  regex: '^#\[ignore\]$'
+files:
+  - "**/*.rs"
+ignores:
+  - "**/target/**"
+  - "**/toolchain/**"
+  - "patches/**"
+  - "**/upstream/**"

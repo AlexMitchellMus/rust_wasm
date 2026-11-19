@@ -1,0 +1,3 @@
+# Project anti-pattern rules (agents/skills/anti-pattern-review.md).
+ruleDirs:
+  - ast-grep/rules

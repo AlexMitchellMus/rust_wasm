@@ -1,0 +1,18 @@
+id: no-process-exit-in-library
+language: Rust
+severity: warning
+message: std::process::exit outside main; return an error instead
+note: agents/GUIDELINES.md, Errors and panics. Only a binary's main decides to exit.
+rule:
+  any:
+    - pattern: std::process::exit($$$)
+    - pattern: process::exit($$$)
+files:
+  - "**/*.rs"
+ignores:
+  - "**/main.rs"
+  - "**/build.rs"
+  - "**/target/**"
+  - "**/toolchain/**"
+  - "patches/**"
+  - "**/upstream/**"

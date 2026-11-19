@@ -1,0 +1,8 @@
+# Lint thresholds for our own code (see agents/GUIDELINES.md). Patch files for
+# upstream projects follow those projects' settings instead.
+excessive-nesting-threshold = 5
+too-many-lines-threshold = 100
+too-many-arguments-threshold = 7
+allow-unwrap-in-tests = true
+allow-expect-in-tests = true
+allow-dbg-in-tests = true

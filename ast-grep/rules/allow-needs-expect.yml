@@ -1,0 +1,20 @@
+id: allow-needs-expect
+language: Rust
+severity: warning
+message: 'use #[expect(lint, reason = "...")] instead of #[allow(...)]'
+note: |
+  agents/GUIDELINES.md, Rust style: #[expect] fails when the lint no longer
+  fires, so stale suppressions are caught, and the reason documents why.
+rule:
+  any:
+    - kind: attribute_item
+      regex: '^#\[allow\('
+    - kind: inner_attribute_item
+      regex: '^#!\[allow\('
+files:
+  - "**/*.rs"
+ignores:
+  - "**/target/**"
+  - "**/toolchain/**"
+  - "patches/**"
+  - "**/upstream/**"

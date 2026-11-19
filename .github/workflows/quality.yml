@@ -1,0 +1,50 @@
+name: quality
+
+# Anti-pattern review scan (agents/skills/anti-pattern-review.md) on our own
+# code. ast-grep error-level rules block; fmt/clippy/shellcheck findings are
+# reported until the existing ones are fixed (agents/ROADMAP.md, Quality work),
+# then this job switches to --strict.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "**/*.rs"
+      - "**/Cargo.toml"
+      - "**/*.sh"
+      - "**/*.py"
+      - "clippy.toml"
+      - "sgconfig.yml"
+      - "ast-grep/**"
+      - "agents/**"
+      - ".github/workflows/quality.yml"
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  review-scan:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Rust toolchain (pinned)
+        run: |
+          rustup toolchain install 1.99.1 --profile minimal --component clippy,rustfmt
+          rustup default 1.99.1
+      - name: ast-grep (pinned)
+        run: npm install --global @ast-grep/cli@0.51.2
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target-quality
+          key: quality-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+      - name: Review scan
+        env:
+          CARGO_TARGET_DIR: target-quality
+        run: agents/scripts/review-scan.sh

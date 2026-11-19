@@ -112,6 +112,14 @@ There is no target date for shared-everything-threads, so the plan is staged:
    import with the standard API once it is standardised and implemented in
    Wasmtime.
 
+## Contributing
+
+Contributions from people and AI agents are welcome. Start with
+[`AGENTS.md`](AGENTS.md): the goals still to complete are in
+[`agents/ROADMAP.md`](agents/ROADMAP.md), the conventions in
+[`agents/GUIDELINES.md`](agents/GUIDELINES.md), and how we work with upstream
+projects in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
 ## Credits
 
 This repository started as [oligamiq/rust_wasm](https://github.com/oligamiq/rust_wasm),
