@@ -35,7 +35,8 @@ sandbox** with nothing but what the host chooses to provide.
 
 Working end to end, still experimental. The build lives in
 [`experiments/cranelift-wasm/`](experiments/cranelift-wasm/) and is built and
-tested on every push by [CI](#ci).
+tested on every push by [CI](#ci). Differential tests also compare the pipeline
+with LLVM rustc on every run: [`difftest`](experiments/cranelift-wasm/difftest/README.md).
 
 | | |
 | --- | --- |

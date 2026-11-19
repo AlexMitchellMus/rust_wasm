@@ -1,0 +1,8 @@
+# Corpus programs that are expected to trap in *both* backends for every
+# run seed. One program stem per line (comments and blank lines ignored).
+# A trap in both is a PASS for these; a trap in only one is a mismatch, and a
+# normal return from either is a mismatch.
+panic_trap
+trap_div_zero
+trap_oob
+trap_unreachable

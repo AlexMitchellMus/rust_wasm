@@ -9,7 +9,8 @@
 #   4. build core/alloc/compiler_builtins with rustc.wasm itself (strict)
 #   5. run plugin (c) end to end and assert eval(1,2,3,4) == 2.25
 #   6. build plugins (a)-(f) and assert A.2 (e)/(f) correctness
-#   7. audit rustc.wasm for LLVM imports/symbols
+#   7. differential test LLVM rustc vs the Cranelift->wasm pipeline
+#   8. audit rustc.wasm for LLVM imports/symbols
 #
 # Logs are teed by the workflow through ci/build-with-diagnostics.sh; the
 # individual build scripts also keep their own logs under stage-c/results/.
@@ -78,6 +79,15 @@ step "build plugins (a), (b), (c), (e), (f) with rustc.wasm"
 
 step "A.2 (e)/(f) correctness assertions"
 "$ROOT/stage-c/run.sh" a2check
+
+# Differential test: the same 48 no_std+alloc corpus programs plus 24 seeded
+# random programs are compiled by LLVM rustc and by rustc.wasm+cg_clif, run in
+# Wasmtime, and compared bit-for-bit (u64 return + output buffer). A trap in
+# both is a match only for corpus programs listed in corpus/expect_trap.txt.
+# This runs unconditionally and fails the job on any mismatch; full per-program
+# details go to stdout (and to the published log).
+step "differential test: LLVM rustc vs Cranelift->wasm"
+"$ROOT/difftest/run.sh" --seeds 24
 
 step "no-LLVM audit"
 mkdir -p "$TOOL/stage-c/work"
